@@ -12,13 +12,27 @@ Folio is an EPUB reader that runs entirely in the browser. You host it as a plai
   - Table of contents (EPUB 3 nav or EPUB 2 NCX) that highlights the current chapter
   - Progress slider for jumping anywhere in the book
   - Internal links and footnotes work; external links open in a new tab
-- **Display settings:** Auto, Light, Sepia or Dark theme; text size; font; line spacing; margins; justified text.
+- **Display settings:** Grey (the default), Auto, Light, Sepia or Dark theme; text size; font; line spacing; margins; justified text.
 - **Navigation:** arrow keys, PageUp/PageDown, Space, mouse wheel, tapping the left or right edge, swiping, or `T` to open the contents.
 - **Safe rendering:** scripts inside books are removed, and each chapter is shown in a sandboxed iframe that cannot run scripts.
 
 ## Running locally
 
-Service workers and ES modules don't work over `file://`, so you need to serve the folder over HTTP:
+### Option A: single file, no server
+
+`dist/folio.html` is the whole app in one file. Double-click it to open it in your browser, or copy it to a USB stick or another computer. Chrome and Edge also save your library and reading position.
+
+After changing the source, rebuild it:
+
+```bash
+node tools/build-single.mjs
+```
+
+The single file doesn't install as an app and doesn't need a service worker, because a file on disk is already offline. If a browser won't let a page opened from disk store data, Folio still opens books but warns that they'll be gone when you close the tab.
+
+### Option B: serve the folder
+
+The multi-file version uses ES modules and a service worker. Browsers block both for pages opened from disk, so serve the folder over HTTP:
 
 ```bash
 npx serve .
@@ -49,6 +63,7 @@ When you change any app file, bump `VERSION` in [sw.js](sw.js). Returning visito
 | `js/db.js` | IndexedDB storage |
 | `sw.js` | Service worker for offline use |
 | `manifest.webmanifest` | PWA manifest, including the `.epub` file handler |
+| `tools/build-single.mjs` | Builds `dist/folio.html`, the single-file version |
 
 ## Limitations
 

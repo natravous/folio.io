@@ -96,7 +96,7 @@ export class Book {
     this.toc = [];
     this.coverPath = null;
     this._resourceUrls = new Map(); // path -> Promise<url>
-    this._chapterUrls = new Map();  // spine index -> Promise<url>
+    this._chapters = new Map();     // spine index -> Promise<html>
     this._allUrls = [];
   }
 
@@ -298,12 +298,14 @@ export class Book {
     });
   }
 
-  // Blob URL for a spine item with every internal resource rewritten to blob URLs.
-  chapterUrl(index) {
-    if (!this._chapterUrls.has(index)) {
-      this._chapterUrls.set(index, this._buildChapter(this.spine[index]));
+  // HTML source for a spine item, with every internal resource rewritten to
+  // blob URLs. It is shown via iframe srcdoc, which shares the app's origin even
+  // when the app is opened from disk (file://), unlike a blob: document.
+  chapterHtml(index) {
+    if (!this._chapters.has(index)) {
+      this._chapters.set(index, this._buildChapter(this.spine[index]));
     }
-    return this._chapterUrls.get(index);
+    return this._chapters.get(index);
   }
 
   async _buildChapter(item) {
@@ -313,16 +315,14 @@ export class Book {
     // Image-only spine items (including SVG) are wrapped in a minimal page.
     if (type.startsWith('image/')) {
       const url = await this.resourceUrl(path);
-      return this._blobUrl(`<!DOCTYPE html><html><head><title></title></head><body><img src="${url}" alt=""/></body></html>`, 'text/html');
+      return `<!DOCTYPE html><html><head><title></title></head><body><img src="${url}" alt=""></body></html>`;
     }
 
     const source = decodeText(await this.zip.bytes(path));
 
     let doc = new DOMParser().parseFromString(source, 'application/xhtml+xml');
-    let isXml = true;
     if (doc.getElementsByTagName('parsererror').length) {
       doc = new DOMParser().parseFromString(source, 'text/html');
-      isXml = false;
     }
 
     // Books are untrusted content: never run their scripts.
@@ -376,16 +376,17 @@ export class Book {
     }
     await Promise.all(jobs);
 
-    if (isXml) {
-      return this._blobUrl(new XMLSerializer().serializeToString(doc), 'application/xhtml+xml');
-    }
-    return this._blobUrl(`<!DOCTYPE html>\n${doc.documentElement.outerHTML}`, 'text/html');
+    // srcdoc is always parsed as HTML, so move XHTML into an HTML document to get
+    // HTML serialization (no self-closing <div/> or <a/> that HTML would misread).
+    const html = document.implementation.createHTMLDocument('');
+    html.replaceChild(html.importNode(doc.documentElement, true), html.documentElement);
+    return `<!DOCTYPE html>\n${html.documentElement.outerHTML}`;
   }
 
   destroy() {
     for (const url of this._allUrls) URL.revokeObjectURL(url);
     this._allUrls = [];
     this._resourceUrls.clear();
-    this._chapterUrls.clear();
+    this._chapters.clear();
   }
 }

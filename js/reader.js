@@ -7,6 +7,7 @@ import { isExternal, resolveHref } from './epub.js';
 const THEMES = {
   light: { bg: '#ffffff', fg: '#1d1d1f', link: '#0b57d0', force: false },
   sepia: { bg: '#f6efe1', fg: '#4b3b2a', link: '#8a4b14', force: true },
+  grey: { bg: '#3a3b3f', fg: '#ecebe7', link: '#a8c7fa', force: true },
   dark: { bg: '#16171a', fg: '#d7d5d0', link: '#8ab4f8', force: true },
 };
 
@@ -15,6 +16,34 @@ const FONTS = {
   sans: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
   dyslexic: '"Comic Sans MS", "Comic Neue", Verdana, sans-serif',
 };
+
+// "rgb(1, 2, 3)" / "rgba(1, 2, 3, 0.5)" -> [r, g, b, a]; null for other formats.
+function parseColor(value) {
+  if (value.startsWith('#')) {
+    const n = parseInt(value.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1];
+  }
+  const m = value.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/);
+  if (!m) return null;
+  let a = m[4] == null ? 1 : parseFloat(m[4]);
+  if (m[4] && m[4].endsWith('%')) a /= 100;
+  return [+m[1], +m[2], +m[3], a];
+}
+
+// Composite a (possibly translucent) colour over an opaque one.
+function blend([r, g, b, a], [br, bg, bb]) {
+  return [r * a + br * (1 - a), g * a + bg * (1 - a), b * a + bb * (1 - a), 1];
+}
+
+// WCAG contrast ratio between two opaque colours.
+function contrast(c1, c2) {
+  const lum = ([r, g, b]) => {
+    const ch = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+  };
+  const [hi, lo] = [lum(c1), lum(c2)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
 
 export function resolveTheme(name) {
   if (name === 'auto') {
@@ -92,9 +121,9 @@ export class Reader {
 
   async _loadInner(index, position, token) {
     this.iframe.style.visibility = 'hidden';
-    let url;
+    let html;
     try {
-      url = await this.book.chapterUrl(index);
+      html = await this.book.chapterHtml(index);
     } catch (err) {
       if (token === this._loadToken) this.iframe.style.visibility = 'visible';
       this.onError(err);
@@ -104,7 +133,7 @@ export class Reader {
 
     await new Promise((resolve) => {
       this.iframe.onload = resolve;
-      this.iframe.src = url;
+      this.iframe.srcdoc = html;
     });
     if (token !== this._loadToken) return;
 
@@ -122,6 +151,7 @@ export class Reader {
     const doc = this.doc;
     if (!doc || !doc.documentElement) return;
     const head = doc.head || doc.getElementsByTagName('head')[0] || doc.documentElement;
+    this._contrastTheme = null;
     this._style = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style');
     head.appendChild(this._style);
 
@@ -202,7 +232,52 @@ export class Reader {
     if (!this.doc || !this._style) return;
     this._measure();
     this._style.textContent = this._css();
+    this._fixContrast();
     this._countPages();
+  }
+
+  // Themes that keep the publisher's colours (Light) can leave text unreadable,
+  // e.g. white text designed for a dark page. Recolour only text whose contrast
+  // against what is actually behind it is too low; other colours stay as-is.
+  _fixContrast() {
+    const themeName = resolveTheme(this.settings.theme);
+    if (this._contrastTheme === themeName) return;
+    this._contrastTheme = themeName;
+    const doc = this.doc;
+
+    for (const el of doc.querySelectorAll('[data-folio-color]')) {
+      const [value, priority] = JSON.parse(el.dataset.folioColor);
+      if (value) el.style.setProperty('color', value, priority); else el.style.removeProperty('color');
+      delete el.dataset.folioColor;
+    }
+    const theme = THEMES[themeName];
+    if (theme.force || !doc.body) return;
+
+    const pageBg = parseColor(theme.bg);
+    const bgCache = new Map();
+    const backgroundOf = (el) => {
+      if (!el || el.nodeType !== 1) return pageBg;
+      if (bgCache.has(el)) return bgCache.get(el);
+      const own = parseColor(this.win.getComputedStyle(el).backgroundColor);
+      const under = backgroundOf(el.parentElement);
+      const result = own && own[3] > 0 ? blend(own, under) : under;
+      bgCache.set(el, result);
+      return result;
+    };
+
+    for (const el of [doc.body, ...doc.body.querySelectorAll('*')]) {
+      const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim());
+      if (!hasText) continue;
+      const fg = parseColor(this.win.getComputedStyle(el).color);
+      if (!fg) continue;
+      const bg = backgroundOf(el);
+      if (contrast(blend(fg, bg), bg) >= 3) continue;
+      const dark = [29, 29, 31, 1];
+      const light = [255, 255, 255, 1];
+      const replacement = contrast(dark, bg) >= contrast(light, bg) ? dark : light;
+      el.dataset.folioColor = JSON.stringify([el.style.getPropertyValue('color'), el.style.getPropertyPriority('color')]);
+      el.style.setProperty('color', `rgb(${replacement.slice(0, 3).join(',')})`, 'important');
+    }
   }
 
   _countPages() {

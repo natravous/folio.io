@@ -4,8 +4,10 @@ import * as db from './db.js';
 
 const $ = (id) => document.getElementById(id);
 
+const SETTINGS_VERSION = 2;
 const DEFAULT_SETTINGS = {
-  theme: 'auto',
+  version: SETTINGS_VERSION,
+  theme: 'grey',
   fontSize: 100,
   fontFamily: 'publisher',
   lineHeight: 'publisher',
@@ -14,18 +16,23 @@ const DEFAULT_SETTINGS = {
   spread: 'auto',
   justify: false,
 };
-const THEME_COLORS = { light: '#ffffff', sepia: '#f6efe1', dark: '#16171a' };
+const THEME_COLORS = { light: '#ffffff', sepia: '#f6efe1', grey: '#3a3b3f', dark: '#16171a' };
 
 let settings = loadSettings();
 let current = null; // { id, meta, book, reader, cumulative, tocFlat }
 let coverUrls = [];
 let saveTimer = null;
+let warnedNotPersistent = false;
 
 // ---------- Settings ----------
 
 function loadSettings() {
   try {
-    return { ...DEFAULT_SETTINGS, ...JSON.parse(localStorage.getItem('folio-settings') || '{}') };
+    const saved = JSON.parse(localStorage.getItem('folio-settings') || '{}');
+    // v2 made Grey the default theme: books with white or pale text were
+    // unreadable on the old white default, so move Auto/Light users over once.
+    if ((saved.version || 1) < 2 && (saved.theme === 'auto' || saved.theme === 'light')) saved.theme = 'grey';
+    return { ...DEFAULT_SETTINGS, ...saved, version: SETTINGS_VERSION };
   } catch {
     return { ...DEFAULT_SETTINGS };
   }
@@ -243,6 +250,10 @@ async function importFiles(fileList) {
       console.error(err);
       toast(`Couldn't open ${file.name}: ${err.message}`, { error: true, timeout: 6000 });
     }
+  }
+  if (added.length && !warnedNotPersistent && !(await db.isPersistent())) {
+    warnedNotPersistent = true;
+    toast('This browser won’t let Folio save books here, so they’ll be gone when you close the tab. Host Folio on a website to keep a library.', { timeout: 9000 });
   }
   await renderLibrary();
   return added;
@@ -530,6 +541,8 @@ function registerServiceWorker() {
   window.addEventListener('online', refresh);
   window.addEventListener('offline', refresh);
 
+  // Opened straight from disk (single-file build): nothing to cache, already offline.
+  if (location.protocol === 'file:') { show('i-check', 'Works offline'); return; }
   if (!('serviceWorker' in navigator)) { refresh(); return; }
   navigator.serviceWorker.register('sw.js').then((reg) => {
     reg.addEventListener('updatefound', () => {

@@ -5,6 +5,9 @@ const DB_NAME = 'epub-reader';
 const DB_VERSION = 1;
 
 let dbPromise = null;
+// Some contexts (e.g. a page opened from disk in some browsers, or private
+// modes) refuse IndexedDB. Then the library lives in memory for this session.
+let memory = null;
 
 function open() {
   if (!dbPromise) {
@@ -41,26 +44,55 @@ function req(request) {
   });
 }
 
-export function listBooks() {
+async function useMemory() {
+  if (memory) return true;
+  try {
+    await open();
+    return false;
+  } catch (err) {
+    console.warn('IndexedDB unavailable; keeping books in memory only', err);
+    memory = { books: new Map(), files: new Map() };
+    return true;
+  }
+}
+
+export async function isPersistent() {
+  return !(await useMemory());
+}
+
+export async function listBooks() {
+  if (await useMemory()) return [...memory.books.values()];
   return run('books', 'readonly', (tx) => req(tx.objectStore('books').getAll()));
 }
 
-export function getBook(id) {
+export async function getBook(id) {
+  if (await useMemory()) return memory.books.get(id);
   return run('books', 'readonly', (tx) => req(tx.objectStore('books').get(id)));
 }
 
-export function getFile(id) {
+export async function getFile(id) {
+  if (await useMemory()) return memory.files.get(id);
   return run('files', 'readonly', (tx) => req(tx.objectStore('files').get(id))).then((r) => r && r.blob);
 }
 
-export function addBook(meta, blob) {
+export async function addBook(meta, blob) {
+  if (await useMemory()) {
+    memory.books.set(meta.id, meta);
+    memory.files.set(meta.id, blob);
+    return;
+  }
   return run(['books', 'files'], 'readwrite', (tx) => {
     tx.objectStore('books').put(meta);
     tx.objectStore('files').put({ id: meta.id, blob });
   });
 }
 
-export function updateBook(id, patch) {
+export async function updateBook(id, patch) {
+  if (await useMemory()) {
+    const current = memory.books.get(id);
+    if (current) memory.books.set(id, { ...current, ...patch });
+    return;
+  }
   return run('books', 'readwrite', async (tx) => {
     const store = tx.objectStore('books');
     const current = await req(store.get(id));
@@ -68,7 +100,12 @@ export function updateBook(id, patch) {
   });
 }
 
-export function deleteBook(id) {
+export async function deleteBook(id) {
+  if (await useMemory()) {
+    memory.books.delete(id);
+    memory.files.delete(id);
+    return;
+  }
   return run(['books', 'files'], 'readwrite', (tx) => {
     tx.objectStore('books').delete(id);
     tx.objectStore('files').delete(id);

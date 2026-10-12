@@ -24,6 +24,19 @@
   --accent-fg: #fff8ee;
 }
 
+:root[data-theme="grey"] {
+  --bg: #3a3b3f;
+  --surface: #44454a;
+  --surface-2: #505257;
+  --fg: #ecebe7;
+  --muted: #b3b1ab;
+  --border: #55575c;
+  --accent: #a8c7fa;
+  --accent-fg: #10213d;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
 :root[data-theme="dark"] {
   --bg: #16171a;
   --surface: #202226;
@@ -355,7 +368,7 @@ button { cursor: pointer; }
 .field.check input { width: 18px; height: 18px; accent-color: var(--accent); }
 
 .segmented { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
-.segmented button { border: 0; background: transparent; padding: 6px 10px; border-radius: 7px; font-size: 13px; }
+.segmented button { border: 0; background: transparent; padding: 6px 8px; border-radius: 7px; font-size: 13px; }
 .segmented button[aria-pressed="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.15); font-weight: 600; }
 
 .stepper { display: flex; align-items: center; gap: 6px; }

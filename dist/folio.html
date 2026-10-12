@@ -1,0 +1,2295 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Folio — EPUB Reader</title>
+  <meta name="description" content="A private EPUB reader that runs entirely in your browser and works offline.">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="icon" href="data:image/svg+xml,%3Csvg%20xmlns%3D%22http%3A%2F%2Fwww.w3.org%2F2000%2Fsvg%22%20viewBox%3D%220%200%20512%20512%22%3E%0A%20%20%3Crect%20width%3D%22512%22%20height%3D%22512%22%20rx%3D%22112%22%20fill%3D%22%230b57d0%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M256%20150c-38-26-88-34-136-30v226c48-4%2098%204%20136%2030%2038-26%2088-34%20136-30V120c-48-4-98%204-136%2030z%22%20fill%3D%22%23fff%22%2F%3E%0A%20%20%3Cpath%20d%3D%22M256%20150v226%22%20stroke%3D%22%230b57d0%22%20stroke-width%3D%2212%22%20stroke-linecap%3D%22round%22%2F%3E%0A%3C%2Fsvg%3E" type="image/svg+xml">
+  <style>
+:root {
+  --bg: #ffffff;
+  --surface: #f5f5f4;
+  --surface-2: #ebeae7;
+  --fg: #1d1d1f;
+  --muted: #6b6b70;
+  --border: #dedcd7;
+  --accent: #0b57d0;
+  --accent-fg: #ffffff;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.14), 0 2px 6px rgba(0, 0, 0, 0.08);
+  --radius: 12px;
+  --font-ui: system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  color-scheme: light;
+}
+
+:root[data-theme="sepia"] {
+  --bg: #f6efe1;
+  --surface: #ede3cf;
+  --surface-2: #e3d6bd;
+  --fg: #4b3b2a;
+  --muted: #8a7558;
+  --border: #d9c9a9;
+  --accent: #8a4b14;
+  --accent-fg: #fff8ee;
+}
+
+:root[data-theme="grey"] {
+  --bg: #3a3b3f;
+  --surface: #44454a;
+  --surface-2: #505257;
+  --fg: #ecebe7;
+  --muted: #b3b1ab;
+  --border: #55575c;
+  --accent: #a8c7fa;
+  --accent-fg: #10213d;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.45), 0 2px 6px rgba(0, 0, 0, 0.35);
+  color-scheme: dark;
+}
+
+:root[data-theme="dark"] {
+  --bg: #16171a;
+  --surface: #202226;
+  --surface-2: #2a2d32;
+  --fg: #e3e1dc;
+  --muted: #9a9892;
+  --border: #33363c;
+  --accent: #8ab4f8;
+  --accent-fg: #0d1b33;
+  --shadow: 0 10px 30px rgba(0, 0, 0, 0.5), 0 2px 6px rgba(0, 0, 0, 0.4);
+  color-scheme: dark;
+}
+
+* { box-sizing: border-box; }
+[hidden] { display: none !important; }
+
+html, body {
+  margin: 0;
+  height: 100%;
+  background: var(--bg);
+  color: var(--fg);
+  font-family: var(--font-ui);
+  -webkit-font-smoothing: antialiased;
+}
+
+button, input, select { font: inherit; color: inherit; }
+button { cursor: pointer; }
+:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+
+.icon {
+  width: 20px;
+  height: 20px;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  flex: none;
+}
+
+.view { min-height: 100%; }
+
+.btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 16px;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-weight: 600;
+  font-size: 14px;
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+.btn-primary { background: var(--accent); color: var(--accent-fg); border-color: transparent; }
+.btn-primary:hover { filter: brightness(1.08); }
+
+.icon-btn {
+  display: inline-grid;
+  place-items: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 10px;
+  background: transparent;
+}
+.icon-btn:hover { background: var(--surface-2); }
+.icon-btn[aria-expanded="true"] { background: var(--surface-2); }
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 12px;
+  color: var(--muted);
+  padding: 4px 10px;
+  border-radius: 999px;
+  background: var(--surface);
+  border: 1px solid var(--border);
+}
+.pill .icon { width: 14px; height: 14px; }
+
+/* ---------- Library ---------- */
+
+.lib-header {
+  position: sticky;
+  top: 0;
+  z-index: 5;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 14px max(16px, env(safe-area-inset-left));
+  background: color-mix(in srgb, var(--bg) 88%, transparent);
+  backdrop-filter: blur(10px);
+  border-bottom: 1px solid var(--border);
+}
+.brand { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.brand h1 { margin: 0; font-size: 20px; letter-spacing: -0.01em; }
+.brand-icon { width: 24px; height: 24px; color: var(--accent); }
+.lib-actions { display: flex; align-items: center; gap: 10px; }
+
+.lib-main { padding: 24px 16px 48px; max-width: 1200px; margin: 0 auto; }
+
+.empty {
+  max-width: 460px;
+  margin: 10vh auto 0;
+  text-align: center;
+  padding: 40px 24px;
+  border: 2px dashed var(--border);
+  border-radius: 20px;
+}
+.empty-icon { width: 48px; height: 48px; color: var(--muted); stroke-width: 1.5; }
+.empty h2 { margin: 12px 0 8px; font-size: 20px; }
+.empty p { color: var(--muted); line-height: 1.55; margin: 0 0 20px; }
+.empty code { font-size: 0.95em; }
+
+.grid {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(140px, 1fr));
+  gap: 28px 20px;
+}
+@media (max-width: 480px) {
+  .grid { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 22px 14px; }
+}
+
+.card { position: relative; display: flex; flex-direction: column; min-width: 0; }
+.card-open {
+  display: block;
+  padding: 0;
+  border: 0;
+  background: none;
+  text-align: left;
+  border-radius: 8px;
+}
+.cover {
+  position: relative;
+  aspect-ratio: 2 / 3;
+  border-radius: 6px;
+  overflow: hidden;
+  background: var(--surface-2);
+  box-shadow: 0 1px 2px rgba(0,0,0,.12), 0 6px 16px rgba(0,0,0,.12);
+  transition: transform .15s ease, box-shadow .15s ease;
+}
+.card-open:hover .cover { transform: translateY(-3px); box-shadow: 0 2px 4px rgba(0,0,0,.14), 0 12px 24px rgba(0,0,0,.18); }
+.cover img { width: 100%; height: 100%; object-fit: cover; display: block; }
+.cover-fallback {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 14px 12px;
+  color: #fff;
+  font-family: Georgia, "Times New Roman", serif;
+}
+.cover-fallback .cf-title { font-size: 16px; line-height: 1.25; font-weight: 600; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 6; -webkit-box-orient: vertical; }
+.cover-fallback .cf-author { font-size: 12px; opacity: .85; }
+.card-meta { padding-top: 10px; min-width: 0; }
+.card-title { font-size: 14px; font-weight: 600; line-height: 1.3; overflow: hidden; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; }
+.card-author { font-size: 12px; color: var(--muted); margin-top: 3px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.card-progress { display: flex; align-items: center; gap: 8px; margin-top: 8px; font-size: 11px; color: var(--muted); }
+.bar { flex: 1; height: 4px; border-radius: 4px; background: var(--surface-2); overflow: hidden; }
+.bar > span { display: block; height: 100%; background: var(--accent); }
+.card-delete {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+  width: 32px;
+  height: 32px;
+  border-radius: 8px;
+  border: 0;
+  display: grid;
+  place-items: center;
+  background: rgba(0, 0, 0, .55);
+  color: #fff;
+  opacity: 0;
+  transition: opacity .15s;
+}
+.card-delete .icon { width: 16px; height: 16px; }
+.card:hover .card-delete, .card-delete:focus-visible { opacity: 1; }
+@media (hover: none) { .card-delete { opacity: .85; } }
+
+/* ---------- Reader ---------- */
+
+#reader-view {
+  position: fixed;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  height: 100dvh;
+  background: var(--bg);
+}
+
+.reader-bar {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px max(8px, env(safe-area-inset-left));
+  padding-top: max(4px, env(safe-area-inset-top));
+  border-bottom: 1px solid var(--border);
+  min-height: 52px;
+}
+.reader-title { flex: 1; min-width: 0; text-align: center; padding: 0 8px; }
+.t-book { font-size: 13px; font-weight: 600; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.t-chapter { font-size: 12px; color: var(--muted); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+
+.reader-body { flex: 1; display: flex; min-height: 0; }
+.viewer { position: relative; flex: 1; min-width: 0; overflow: hidden; }
+.reader-frame { display: block; border: 0; width: 100%; height: 100%; background: var(--bg); }
+
+.side-btn {
+  flex: none;
+  width: 48px;
+  border: 0;
+  background: transparent;
+  color: var(--muted);
+  display: grid;
+  place-items: center;
+  opacity: .55;
+  transition: opacity .15s, background .15s;
+}
+.side-btn:hover { opacity: 1; background: var(--surface); }
+.side-btn .icon { width: 26px; height: 26px; }
+@media (max-width: 700px) { .side-btn { display: none; } }
+
+.reader-foot {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 8px 16px;
+  padding-bottom: max(8px, env(safe-area-inset-bottom));
+  border-top: 1px solid var(--border);
+  min-height: 44px;
+}
+.foot-text { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
+#page-info { min-width: 90px; }
+.foot-pct { min-width: 36px; text-align: right; }
+#progress { flex: 1; accent-color: var(--accent); min-width: 60px; }
+@media (max-width: 480px) { #page-info { display: none; } }
+
+.loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; }
+.spinner {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 3px solid var(--surface-2);
+  border-top-color: var(--accent);
+  animation: spin .8s linear infinite;
+}
+@keyframes spin { to { transform: rotate(360deg); } }
+
+.scrim { position: absolute; inset: 0; background: rgba(0,0,0,.28); z-index: 9; }
+
+.drawer, .popover {
+  position: absolute;
+  z-index: 10;
+  background: var(--bg);
+  color: var(--fg);
+  box-shadow: var(--shadow);
+  display: flex;
+  flex-direction: column;
+}
+.drawer {
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: min(360px, 88vw);
+  border-right: 1px solid var(--border);
+  animation: slide-in .18s ease-out;
+}
+@keyframes slide-in { from { transform: translateX(-100%); } }
+.popover {
+  top: 56px;
+  right: 12px;
+  width: min(340px, calc(100vw - 24px));
+  max-height: calc(100dvh - 72px);
+  overflow-y: auto;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  padding-bottom: 12px;
+  animation: pop .14s ease-out;
+}
+@keyframes pop { from { opacity: 0; transform: translateY(-6px); } }
+
+.panel-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 10px 8px 6px 18px;
+}
+.panel-head h2 { margin: 0; font-size: 15px; }
+
+.toc { overflow-y: auto; padding: 4px 8px 24px; flex: 1; }
+.toc ul { list-style: none; margin: 0; padding: 0; }
+.toc ul ul { padding-left: 14px; }
+.toc button {
+  display: block;
+  width: 100%;
+  text-align: left;
+  border: 0;
+  background: transparent;
+  padding: 9px 10px;
+  border-radius: 8px;
+  font-size: 14px;
+  line-height: 1.35;
+}
+.toc button:hover { background: var(--surface); }
+.toc button.active { background: var(--surface-2); font-weight: 600; color: var(--accent); }
+.toc button:disabled { opacity: .5; cursor: default; }
+
+.field { display: flex; align-items: center; justify-content: space-between; gap: 12px; padding: 8px 18px; }
+.field .label { font-size: 13px; color: var(--muted); }
+.field select {
+  min-width: 0;
+  max-width: 190px;
+  padding: 7px 10px;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  font-size: 13px;
+}
+.field.check { justify-content: flex-start; font-size: 14px; cursor: pointer; }
+.field.check input { width: 18px; height: 18px; accent-color: var(--accent); }
+
+.segmented { display: flex; background: var(--surface); border: 1px solid var(--border); border-radius: 9px; padding: 2px; }
+.segmented button { border: 0; background: transparent; padding: 6px 8px; border-radius: 7px; font-size: 13px; }
+.segmented button[aria-pressed="true"] { background: var(--bg); box-shadow: 0 1px 3px rgba(0,0,0,.15); font-weight: 600; }
+
+.stepper { display: flex; align-items: center; gap: 6px; }
+.stepper button { width: 44px; height: 34px; border-radius: 8px; border: 1px solid var(--border); background: var(--surface); font-weight: 600; }
+.stepper output { min-width: 48px; text-align: center; font-size: 13px; font-variant-numeric: tabular-nums; }
+
+/* ---------- Drop & toasts ---------- */
+
+.drop-overlay {
+  position: fixed;
+  inset: 0;
+  z-index: 50;
+  display: grid;
+  place-items: center;
+  background: color-mix(in srgb, var(--bg) 80%, transparent);
+  backdrop-filter: blur(4px);
+  pointer-events: none;
+}
+.drop-box {
+  padding: 40px 56px;
+  border: 3px dashed var(--accent);
+  border-radius: 20px;
+  text-align: center;
+  color: var(--accent);
+  font-weight: 600;
+}
+.drop-box .icon { width: 40px; height: 40px; }
+
+.toasts {
+  position: fixed;
+  left: 50%;
+  bottom: 24px;
+  transform: translateX(-50%);
+  z-index: 60;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: center;
+  width: max-content;
+  max-width: calc(100vw - 32px);
+}
+.toast {
+  background: var(--fg);
+  color: var(--bg);
+  padding: 10px 16px;
+  border-radius: 10px;
+  font-size: 14px;
+  box-shadow: var(--shadow);
+  animation: pop .15s ease-out;
+}
+.toast.error { background: #b3261e; color: #fff; }
+</style>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+    <symbol id="i-toc" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V5h11v2M9.5 5v14M7 19h5M14 12v-1.5h7V12M17.5 10.5V19M16 19h3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5zM4 20.5A2.5 2.5 0 006.5 23H20v-5"/></symbol>
+    <symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="M3 3l18 18M8 8a5 5 0 00-1 9.9h10M17.8 17.6A4 4 0 0016 10h-1.3a7 7 0 00-6.3-4.9"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </svg>
+
+  <!-- Library -->
+  <section id="library-view" class="view" aria-label="Library">
+    <header class="lib-header">
+      <div class="brand">
+        <svg class="icon brand-icon"><use href="#i-book"/></svg>
+        <h1>Folio</h1>
+      </div>
+      <div class="lib-actions">
+        <span id="offline-status" class="pill" hidden></span>
+        <label class="btn btn-primary" for="file-input">
+          <svg class="icon"><use href="#i-plus"/></svg><span>Add books</span>
+        </label>
+        <input id="file-input" type="file" accept=".epub,application/epub+zip" multiple hidden>
+      </div>
+    </header>
+
+    <main class="lib-main">
+      <div id="empty-state" class="empty" hidden>
+        <svg class="icon empty-icon"><use href="#i-book"/></svg>
+        <h2>Your library is empty</h2>
+        <p>Drop <code>.epub</code> files anywhere on this page, or choose them from your device. Books are stored only in this browser and stay readable offline.</p>
+        <label class="btn btn-primary" for="file-input"><svg class="icon"><use href="#i-plus"/></svg><span>Choose EPUB files</span></label>
+      </div>
+      <ul id="book-grid" class="grid" aria-label="Books"></ul>
+    </main>
+  </section>
+
+  <!-- Reader -->
+  <section id="reader-view" class="view" aria-label="Reader" hidden>
+    <header class="reader-bar">
+      <button id="btn-library" class="icon-btn" aria-label="Back to library" title="Library"><svg class="icon"><use href="#i-back"/></svg></button>
+      <button id="btn-toc" class="icon-btn" aria-label="Table of contents" title="Contents (T)" aria-expanded="false" aria-controls="toc-panel"><svg class="icon"><use href="#i-toc"/></svg></button>
+      <div class="reader-title">
+        <div id="book-title" class="t-book"></div>
+        <div id="chapter-title" class="t-chapter"></div>
+      </div>
+      <button id="btn-settings" class="icon-btn" aria-label="Reading settings" title="Settings" aria-expanded="false" aria-controls="settings-panel"><svg class="icon"><use href="#i-type"/></svg></button>
+    </header>
+
+    <div class="reader-body">
+      <button id="btn-prev" class="side-btn" aria-label="Previous page"><svg class="icon"><use href="#i-back"/></svg></button>
+      <div id="viewer" class="viewer">
+        <div id="viewer-loading" class="loading" hidden><div class="spinner"></div></div>
+      </div>
+      <button id="btn-next" class="side-btn" aria-label="Next page"><svg class="icon"><use href="#i-next"/></svg></button>
+    </div>
+
+    <footer class="reader-foot">
+      <span id="page-info" class="foot-text"></span>
+      <input id="progress" type="range" min="0" max="1000" value="0" aria-label="Book progress">
+      <span id="progress-text" class="foot-text foot-pct">0%</span>
+    </footer>
+
+    <aside id="toc-panel" class="drawer" aria-label="Table of contents" hidden>
+      <div class="panel-head">
+        <h2>Contents</h2>
+        <button class="icon-btn" data-close aria-label="Close contents"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+      <nav id="toc-list" class="toc"></nav>
+    </aside>
+
+    <aside id="settings-panel" class="popover" aria-label="Reading settings" hidden>
+      <div class="panel-head">
+        <h2>Display</h2>
+        <button class="icon-btn" data-close aria-label="Close settings"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+
+      <div class="field">
+        <span class="label">Theme</span>
+        <div class="segmented" data-setting="theme">
+          <button data-value="auto">Auto</button>
+          <button data-value="light">Light</button>
+          <button data-value="sepia">Sepia</button>
+          <button data-value="grey">Grey</button>
+          <button data-value="dark">Dark</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Text size</span>
+        <div class="stepper">
+          <button id="font-smaller" aria-label="Smaller text">A−</button>
+          <output id="font-size-value">100%</output>
+          <button id="font-larger" aria-label="Larger text">A+</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-font">Font</label>
+        <select id="set-font" data-setting="fontFamily">
+          <option value="publisher">Publisher default</option>
+          <option value="serif">Serif</option>
+          <option value="sans">Sans-serif</option>
+          <option value="dyslexic">Rounded (readability)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-line">Line spacing</label>
+        <select id="set-line" data-setting="lineHeight">
+          <option value="publisher">Publisher default</option>
+          <option value="1.3">Compact</option>
+          <option value="1.55">Comfortable</option>
+          <option value="1.8">Relaxed</option>
+          <option value="2.1">Loose</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-margins">Margins</label>
+        <select id="set-margins" data-setting="margins">
+          <option value="narrow">Narrow</option>
+          <option value="normal">Normal</option>
+          <option value="wide">Wide</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <span class="label">Layout</span>
+        <div class="segmented" data-setting="flow">
+          <button data-value="paginated">Pages</button>
+          <button data-value="scrolled">Scroll</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-spread">Columns</label>
+        <select id="set-spread" data-setting="spread">
+          <option value="auto">Two on wide screens</option>
+          <option value="single">Always one</option>
+        </select>
+      </div>
+
+      <label class="field check">
+        <input type="checkbox" data-setting="justify">
+        <span>Justify paragraphs</span>
+      </label>
+    </aside>
+    <div id="scrim" class="scrim" hidden></div>
+  </section>
+
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-box">
+      <svg class="icon"><use href="#i-plus"/></svg>
+      <p>Drop EPUB files to add them</p>
+    </div>
+  </div>
+
+  <div id="toast-region" class="toasts" role="status" aria-live="polite"></div>
+<script>
+"use strict";
+(() => {
+const __modules = {};
+__modules['js/zip.js'] = (() => {
+// Minimal read-only ZIP reader. Uses the browser's native DecompressionStream
+// for deflate, so there are no third-party dependencies.
+
+const SIG_EOCD = 0x06054b50;
+const SIG_CDIR = 0x02014b50;
+const SIG_LOCAL = 0x04034b50;
+
+class ZipArchive {
+  constructor(buffer) {
+    this.buffer = buffer;
+    this.view = new DataView(buffer);
+    this.entries = new Map();
+    this.lowerIndex = new Map();
+    this._readCentralDirectory();
+  }
+
+  _readCentralDirectory() {
+    const { view, buffer } = this;
+    // The End Of Central Directory record sits in the last 22 + 65535 bytes.
+    const min = Math.max(0, buffer.byteLength - 22 - 0xffff);
+    let eocd = -1;
+    for (let i = buffer.byteLength - 22; i >= min; i--) {
+      if (view.getUint32(i, true) === SIG_EOCD) { eocd = i; break; }
+    }
+    if (eocd < 0) throw new Error('Not a valid ZIP/EPUB file.');
+
+    const count = view.getUint16(eocd + 10, true);
+    let offset = view.getUint32(eocd + 16, true);
+    if (offset === 0xffffffff) throw new Error('ZIP64 archives are not supported.');
+
+    const utf8 = new TextDecoder('utf-8');
+    for (let i = 0; i < count; i++) {
+      if (view.getUint32(offset, true) !== SIG_CDIR) throw new Error('Corrupt ZIP central directory.');
+      const method = view.getUint16(offset + 10, true);
+      const compressedSize = view.getUint32(offset + 20, true);
+      const size = view.getUint32(offset + 24, true);
+      const nameLen = view.getUint16(offset + 28, true);
+      const extraLen = view.getUint16(offset + 30, true);
+      const commentLen = view.getUint16(offset + 32, true);
+      const localOffset = view.getUint32(offset + 42, true);
+      const name = utf8.decode(new Uint8Array(buffer, offset + 46, nameLen));
+      if (!name.endsWith('/')) {
+        const entry = { name, method, compressedSize, size, localOffset };
+        this.entries.set(name, entry);
+        this.lowerIndex.set(name.toLowerCase(), entry);
+      }
+      offset += 46 + nameLen + extraLen + commentLen;
+    }
+  }
+
+  getEntry(path) {
+    return this.entries.get(path) || this.lowerIndex.get(path.toLowerCase()) || null;
+  }
+
+  has(path) {
+    return !!this.getEntry(path);
+  }
+
+  async bytes(path) {
+    const entry = this.getEntry(path);
+    if (!entry) throw new Error(`File not found in archive: ${path}`);
+    const { view, buffer } = this;
+    const lo = entry.localOffset;
+    if (view.getUint32(lo, true) !== SIG_LOCAL) throw new Error(`Corrupt local header: ${path}`);
+    const nameLen = view.getUint16(lo + 26, true);
+    const extraLen = view.getUint16(lo + 28, true);
+    const start = lo + 30 + nameLen + extraLen;
+    const raw = new Uint8Array(buffer, start, entry.compressedSize);
+
+    if (entry.method === 0) return raw.slice();
+    if (entry.method === 8) {
+      const stream = new Blob([raw]).stream().pipeThrough(new DecompressionStream('deflate-raw'));
+      return new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    throw new Error(`Unsupported compression method ${entry.method} for ${path}`);
+  }
+
+  async text(path) {
+    return decodeText(await this.bytes(path));
+  }
+}
+
+// Decode bytes honouring a BOM or an XML encoding declaration, defaulting to UTF-8.
+function decodeText(bytes) {
+  if (bytes[0] === 0xef && bytes[1] === 0xbb && bytes[2] === 0xbf) return new TextDecoder('utf-8').decode(bytes.subarray(3));
+  if (bytes[0] === 0xff && bytes[1] === 0xfe) return new TextDecoder('utf-16le').decode(bytes.subarray(2));
+  if (bytes[0] === 0xfe && bytes[1] === 0xff) return new TextDecoder('utf-16be').decode(bytes.subarray(2));
+  const head = new TextDecoder('latin1').decode(bytes.subarray(0, 200));
+  const m = head.match(/<\?xml[^>]*encoding=["']([\w-]+)["']/i) || head.match(/<meta[^>]*charset=["']?([\w-]+)/i);
+  if (m) {
+    try { return new TextDecoder(m[1]).decode(bytes); } catch { /* unknown label: fall through */ }
+  }
+  return new TextDecoder('utf-8').decode(bytes);
+}
+
+return { ZipArchive, decodeText };
+})();
+
+__modules['js/epub.js'] = (() => {
+// EPUB 2/3 parser: reads the package document, spine, table of contents and
+// cover, and turns chapters into self-contained blob: URLs for rendering.
+
+const { ZipArchive, decodeText } = __modules['js/zip.js'];
+
+const NS = {
+  opf: 'http://www.idpf.org/2007/opf',
+  dc: 'http://purl.org/dc/elements/1.1/',
+  ops: 'http://www.idpf.org/2007/ops',
+  xlink: 'http://www.w3.org/1999/xlink',
+  xhtml: 'http://www.w3.org/1999/xhtml',
+};
+
+const MIME_BY_EXT = {
+  xhtml: 'application/xhtml+xml', html: 'text/html', htm: 'text/html', xml: 'application/xml',
+  css: 'text/css', js: 'text/javascript', svg: 'image/svg+xml',
+  jpg: 'image/jpeg', jpeg: 'image/jpeg', png: 'image/png', gif: 'image/gif', webp: 'image/webp', avif: 'image/avif',
+  ttf: 'font/ttf', otf: 'font/otf', woff: 'font/woff', woff2: 'font/woff2',
+  mp3: 'audio/mpeg', m4a: 'audio/mp4', mp4: 'video/mp4', webm: 'video/webm', ogg: 'audio/ogg',
+};
+
+// Element attributes that reference resources inside the book.
+const URL_ATTRS = {
+  img: ['src'], image: ['href'], source: ['src'], video: ['src', 'poster'], audio: ['src'],
+  track: ['src'], object: ['data'], embed: ['src'], use: ['href'], iframe: ['src'], input: ['src'],
+};
+
+function dirname(path) {
+  const i = path.lastIndexOf('/');
+  return i < 0 ? '' : path.slice(0, i + 1);
+}
+
+function isExternal(href) {
+  return /^[a-z][a-z0-9+.-]*:/i.test(href) || href.startsWith('//');
+}
+
+// Resolve `href` relative to the file at `basePath`. Returns { path, fragment }
+// or null for external URLs.
+function resolveHref(basePath, href) {
+  if (href == null) return null;
+  href = href.trim();
+  if (isExternal(href)) return null;
+  let fragment = '';
+  const hash = href.indexOf('#');
+  if (hash >= 0) { fragment = href.slice(hash + 1); href = href.slice(0, hash); }
+  const q = href.indexOf('?');
+  if (q >= 0) href = href.slice(0, q);
+  try { href = decodeURIComponent(href); } catch { /* keep as-is */ }
+  try { fragment = decodeURIComponent(fragment); } catch { /* keep as-is */ }
+  if (!href) return { path: basePath, fragment };
+
+  const joined = href.startsWith('/') ? href.slice(1) : dirname(basePath) + href;
+  const out = [];
+  for (const part of joined.split('/')) {
+    if (part === '..') out.pop();
+    else if (part && part !== '.') out.push(part);
+  }
+  return { path: out.join('/'), fragment };
+}
+
+function parseXml(text) {
+  const doc = new DOMParser().parseFromString(text, 'application/xml');
+  if (doc.getElementsByTagName('parsererror').length) {
+    // Some books ship slightly broken XML; the HTML parser is far more forgiving.
+    return new DOMParser().parseFromString(text, 'text/html');
+  }
+  return doc;
+}
+
+function byTag(root, ns, local) {
+  const list = root.getElementsByTagNameNS(ns, local);
+  if (list.length) return [...list];
+  // Fallbacks for documents parsed without namespaces.
+  const prefixed = root.getElementsByTagName(`dc:${local}`);
+  if (prefixed.length) return [...prefixed];
+  return [...root.getElementsByTagName(local)];
+}
+
+function children(el, local) {
+  return [...el.children].filter((c) => c.localName === local);
+}
+
+class Book {
+  static async open(buffer) {
+    const book = new Book(new ZipArchive(buffer));
+    await book._load();
+    return book;
+  }
+
+  constructor(zip) {
+    this.zip = zip;
+    this.metadata = { title: '', creator: '', language: '', identifier: '' };
+    this.manifest = new Map();      // id -> item
+    this.manifestByPath = new Map(); // path -> item
+    this.spine = [];
+    this.toc = [];
+    this.coverPath = null;
+    this._resourceUrls = new Map(); // path -> Promise<url>
+    this._chapters = new Map();     // spine index -> Promise<html>
+    this._allUrls = [];
+  }
+
+  async _load() {
+    if (!this.zip.has('META-INF/container.xml')) throw new Error('This file is not an EPUB (missing META-INF/container.xml).');
+    const container = parseXml(await this.zip.text('META-INF/container.xml'));
+    const rootfile = container.getElementsByTagName('rootfile')[0];
+    const opfPath = rootfile && rootfile.getAttribute('full-path');
+    if (!opfPath) throw new Error('EPUB container does not point to a package document.');
+    this.opfPath = opfPath;
+
+    const opf = parseXml(await this.zip.text(opfPath));
+    const text = (local) => {
+      const el = byTag(opf, NS.dc, local)[0];
+      return el ? el.textContent.trim() : '';
+    };
+    this.metadata = {
+      title: text('title') || 'Untitled',
+      creator: byTag(opf, NS.dc, 'creator').map((e) => e.textContent.trim()).filter(Boolean).join(', '),
+      language: text('language'),
+      identifier: text('identifier'),
+      publisher: text('publisher'),
+      description: text('description'),
+    };
+
+    for (const item of opf.getElementsByTagName('item')) {
+      const href = item.getAttribute('href');
+      if (!href) continue;
+      const resolved = resolveHref(opfPath, href);
+      if (!resolved) continue;
+      const entry = {
+        id: item.getAttribute('id'),
+        path: resolved.path,
+        mediaType: item.getAttribute('media-type') || '',
+        properties: (item.getAttribute('properties') || '').split(/\s+/).filter(Boolean),
+      };
+      this.manifest.set(entry.id, entry);
+      this.manifestByPath.set(entry.path, entry);
+    }
+
+    const spineEl = opf.getElementsByTagName('spine')[0];
+    if (spineEl) {
+      for (const ref of spineEl.getElementsByTagName('itemref')) {
+        const item = this.manifest.get(ref.getAttribute('idref'));
+        if (!item || !this.zip.has(item.path)) continue;
+        const entry = this.zip.getEntry(item.path);
+        this.spine.push({
+          path: item.path,
+          mediaType: item.mediaType,
+          linear: ref.getAttribute('linear') !== 'no',
+          size: Math.max(entry.size, 1),
+        });
+      }
+    }
+    if (!this.spine.length) throw new Error('This EPUB has no readable chapters.');
+    this.spine.forEach((s, i) => { s.index = i; });
+    this.totalSize = this.spine.reduce((sum, s) => sum + s.size, 0);
+
+    this.coverPath = this._findCover(opf);
+    try {
+      this.toc = await this._loadToc(spineEl);
+    } catch (err) {
+      console.warn('Could not read table of contents', err);
+    }
+    if (!this.toc.length) {
+      this.toc = this.spine.map((s, i) => ({ label: `Section ${i + 1}`, path: s.path, fragment: '', children: [] }));
+    }
+  }
+
+  _findCover(opf) {
+    for (const item of this.manifest.values()) {
+      if (item.properties.includes('cover-image')) return item.path;
+    }
+    for (const meta of opf.getElementsByTagName('meta')) {
+      if (meta.getAttribute('name') === 'cover') {
+        const ref = meta.getAttribute('content');
+        const item = this.manifest.get(ref);
+        if (item && item.mediaType.startsWith('image/')) return item.path;
+        const byPath = ref && resolveHref(this.opfPath, ref);
+        if (byPath && this.zip.has(byPath.path)) return byPath.path;
+      }
+    }
+    for (const item of this.manifest.values()) {
+      if (item.mediaType.startsWith('image/') && /cover/i.test(item.id + item.path)) return item.path;
+    }
+    return null;
+  }
+
+  async _loadToc(spineEl) {
+    const nav = [...this.manifest.values()].find((i) => i.properties.includes('nav'));
+    if (nav && this.zip.has(nav.path)) {
+      const toc = this._parseNav(parseXml(await this.zip.text(nav.path)), nav.path);
+      if (toc.length) return toc;
+    }
+    const ncxId = spineEl && spineEl.getAttribute('toc');
+    const ncx = (ncxId && this.manifest.get(ncxId))
+      || [...this.manifest.values()].find((i) => i.mediaType === 'application/x-dtbncx+xml');
+    if (ncx && this.zip.has(ncx.path)) {
+      return this._parseNcx(parseXml(await this.zip.text(ncx.path)), ncx.path);
+    }
+    return [];
+  }
+
+  _parseNav(doc, basePath) {
+    const navs = [...doc.getElementsByTagName('nav')];
+    const navEl = navs.find((n) => (n.getAttributeNS(NS.ops, 'type') || n.getAttribute('epub:type') || '').split(/\s+/).includes('toc')) || navs[0];
+    if (!navEl) return [];
+    const ol = navEl.getElementsByTagName('ol')[0];
+    const walk = (list) => children(list, 'li').map((li) => {
+      const link = children(li, 'a')[0] || children(li, 'span')[0];
+      const sub = children(li, 'ol')[0];
+      const href = link && link.getAttribute('href');
+      const target = href ? resolveHref(basePath, href) : null;
+      return {
+        label: (link ? link.textContent : li.textContent).replace(/\s+/g, ' ').trim(),
+        path: target ? target.path : null,
+        fragment: target ? target.fragment : '',
+        children: sub ? walk(sub) : [],
+      };
+    }).filter((e) => e.label);
+    return ol ? walk(ol) : [];
+  }
+
+  _parseNcx(doc, basePath) {
+    const navMap = doc.getElementsByTagName('navMap')[0];
+    if (!navMap) return [];
+    const walk = (parent) => children(parent, 'navPoint').map((np) => {
+      const label = np.getElementsByTagName('text')[0];
+      const content = children(np, 'content')[0];
+      const target = content ? resolveHref(basePath, content.getAttribute('src')) : null;
+      return {
+        label: label ? label.textContent.replace(/\s+/g, ' ').trim() : '',
+        path: target ? target.path : null,
+        fragment: target ? target.fragment : '',
+        children: walk(np),
+      };
+    }).filter((e) => e.label);
+    return walk(navMap);
+  }
+
+  spineIndexOf(path) {
+    const lower = path.toLowerCase();
+    return this.spine.findIndex((s) => s.path === path || s.path.toLowerCase() === lower);
+  }
+
+  mimeFor(path) {
+    const item = this.manifestByPath.get(path);
+    if (item && item.mediaType) return item.mediaType;
+    const ext = path.split('.').pop().toLowerCase();
+    return MIME_BY_EXT[ext] || 'application/octet-stream';
+  }
+
+  async getCoverBlob() {
+    if (!this.coverPath || !this.zip.has(this.coverPath)) return null;
+    const bytes = await this.zip.bytes(this.coverPath);
+    return new Blob([bytes], { type: this.mimeFor(this.coverPath) });
+  }
+
+  _blobUrl(data, type) {
+    const url = URL.createObjectURL(new Blob([data], { type }));
+    this._allUrls.push(url);
+    return url;
+  }
+
+  // Blob URL for any resource; stylesheets get their own url() references rewritten.
+  resourceUrl(path) {
+    if (!this._resourceUrls.has(path)) {
+      const promise = (async () => {
+        if (!this.zip.has(path)) return null;
+        const type = this.mimeFor(path);
+        if (type === 'text/css') {
+          const css = await this._rewriteCss(await this.zip.text(path), path);
+          return this._blobUrl(css, 'text/css');
+        }
+        return this._blobUrl(await this.zip.bytes(path), type);
+      })();
+      this._resourceUrls.set(path, promise);
+    }
+    return this._resourceUrls.get(path);
+  }
+
+  async _rewriteCss(css, basePath) {
+    const re = /url\(\s*(['"]?)([^'")]+?)\1\s*\)|@import\s+(['"])([^'"]+)\3/g;
+    const refs = new Set();
+    for (const m of css.matchAll(re)) refs.add(m[2] || m[4]);
+    const map = new Map();
+    await Promise.all([...refs].map(async (ref) => {
+      if (ref.startsWith('data:') || ref.startsWith('#')) return;
+      const target = resolveHref(basePath, ref);
+      if (!target) return;
+      const url = await this.resourceUrl(target.path);
+      if (url) map.set(ref, url);
+    }));
+    return css.replace(re, (match, q1, urlRef, q2, importRef) => {
+      const ref = urlRef || importRef;
+      const url = map.get(ref);
+      if (!url) return match;
+      return urlRef ? `url("${url}")` : `@import "${url}"`;
+    });
+  }
+
+  // HTML source for a spine item, with every internal resource rewritten to
+  // blob URLs. It is shown via iframe srcdoc, which shares the app's origin even
+  // when the app is opened from disk (file://), unlike a blob: document.
+  chapterHtml(index) {
+    if (!this._chapters.has(index)) {
+      this._chapters.set(index, this._buildChapter(this.spine[index]));
+    }
+    return this._chapters.get(index);
+  }
+
+  async _buildChapter(item) {
+    const { path } = item;
+    const type = this.mimeFor(path);
+
+    // Image-only spine items (including SVG) are wrapped in a minimal page.
+    if (type.startsWith('image/')) {
+      const url = await this.resourceUrl(path);
+      return `<!DOCTYPE html><html><head><title></title></head><body><img src="${url}" alt=""></body></html>`;
+    }
+
+    const source = decodeText(await this.zip.bytes(path));
+
+    let doc = new DOMParser().parseFromString(source, 'application/xhtml+xml');
+    if (doc.getElementsByTagName('parsererror').length) {
+      doc = new DOMParser().parseFromString(source, 'text/html');
+    }
+
+    // Books are untrusted content: never run their scripts.
+    for (const s of [...doc.getElementsByTagName('script')]) s.remove();
+
+    const jobs = [];
+    for (const el of [...doc.getElementsByTagName('*')]) {
+      const name = el.localName.toLowerCase();
+
+      if (name === 'link') {
+        const rel = (el.getAttribute('rel') || '').toLowerCase();
+        const target = rel.includes('stylesheet') ? resolveHref(path, el.getAttribute('href')) : null;
+        if (!target) { el.remove(); continue; }
+        jobs.push(this.resourceUrl(target.path).then((url) => {
+          if (url) el.setAttribute('href', url); else el.remove();
+        }));
+        continue;
+      }
+
+      if (name === 'style') {
+        jobs.push(this._rewriteCss(el.textContent, path).then((css) => { el.textContent = css; }));
+        continue;
+      }
+
+      if (el.hasAttribute('style') && el.getAttribute('style').includes('url(')) {
+        jobs.push(this._rewriteCss(el.getAttribute('style'), path).then((css) => el.setAttribute('style', css)));
+      }
+
+      for (const attr of el.getAttributeNames()) {
+        if (/^on/i.test(attr)) el.removeAttribute(attr);
+      }
+
+      const attrs = URL_ATTRS[name];
+      if (!attrs) continue;
+      if (name === 'img') el.removeAttribute('srcset');
+      for (const attr of attrs) {
+        const candidates = attr === 'href'
+          ? [['xlink', el.getAttributeNS(NS.xlink, 'href')], ['plain', el.getAttribute('href')]]
+          : [['plain', el.getAttribute(attr)]];
+        for (const [kind, value] of candidates) {
+          if (!value || value.startsWith('data:') || value.startsWith('#')) continue;
+          const target = resolveHref(path, value);
+          if (!target) continue;
+          jobs.push(this.resourceUrl(target.path).then((url) => {
+            if (!url) return;
+            if (kind === 'xlink') el.setAttributeNS(NS.xlink, 'xlink:href', url);
+            else el.setAttribute(attr, url);
+          }));
+        }
+      }
+    }
+    await Promise.all(jobs);
+
+    // srcdoc is always parsed as HTML, so move XHTML into an HTML document to get
+    // HTML serialization (no self-closing <div/> or <a/> that HTML would misread).
+    const html = document.implementation.createHTMLDocument('');
+    html.replaceChild(html.importNode(doc.documentElement, true), html.documentElement);
+    return `<!DOCTYPE html>\n${html.documentElement.outerHTML}`;
+  }
+
+  destroy() {
+    for (const url of this._allUrls) URL.revokeObjectURL(url);
+    this._allUrls = [];
+    this._resourceUrls.clear();
+    this._chapters.clear();
+  }
+}
+
+return { dirname, isExternal, resolveHref, Book };
+})();
+
+__modules['js/db.js'] = (() => {
+// Tiny promise wrapper around IndexedDB. Book metadata and the EPUB files are
+// kept in separate stores so listing the library never loads whole books.
+
+const DB_NAME = 'epub-reader';
+const DB_VERSION = 1;
+
+let dbPromise = null;
+// Some contexts (e.g. a page opened from disk in some browsers, or private
+// modes) refuse IndexedDB. Then the library lives in memory for this session.
+let memory = null;
+
+function open() {
+  if (!dbPromise) {
+    dbPromise = new Promise((resolve, reject) => {
+      const req = indexedDB.open(DB_NAME, DB_VERSION);
+      req.onupgradeneeded = () => {
+        const db = req.result;
+        if (!db.objectStoreNames.contains('books')) db.createObjectStore('books', { keyPath: 'id' });
+        if (!db.objectStoreNames.contains('files')) db.createObjectStore('files', { keyPath: 'id' });
+      };
+      req.onsuccess = () => resolve(req.result);
+      req.onerror = () => reject(req.error);
+    });
+  }
+  return dbPromise;
+}
+
+async function run(storeNames, mode, fn) {
+  const db = await open();
+  return new Promise((resolve, reject) => {
+    const tx = db.transaction(storeNames, mode);
+    let result;
+    Promise.resolve(fn(tx)).then((r) => { result = r; }, reject);
+    tx.oncomplete = () => resolve(result);
+    tx.onerror = () => reject(tx.error);
+    tx.onabort = () => reject(tx.error || new Error('Transaction aborted'));
+  });
+}
+
+function req(request) {
+  return new Promise((resolve, reject) => {
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+  });
+}
+
+async function useMemory() {
+  if (memory) return true;
+  try {
+    await open();
+    return false;
+  } catch (err) {
+    console.warn('IndexedDB unavailable; keeping books in memory only', err);
+    memory = { books: new Map(), files: new Map() };
+    return true;
+  }
+}
+
+async function isPersistent() {
+  return !(await useMemory());
+}
+
+async function listBooks() {
+  if (await useMemory()) return [...memory.books.values()];
+  return run('books', 'readonly', (tx) => req(tx.objectStore('books').getAll()));
+}
+
+async function getBook(id) {
+  if (await useMemory()) return memory.books.get(id);
+  return run('books', 'readonly', (tx) => req(tx.objectStore('books').get(id)));
+}
+
+async function getFile(id) {
+  if (await useMemory()) return memory.files.get(id);
+  return run('files', 'readonly', (tx) => req(tx.objectStore('files').get(id))).then((r) => r && r.blob);
+}
+
+async function addBook(meta, blob) {
+  if (await useMemory()) {
+    memory.books.set(meta.id, meta);
+    memory.files.set(meta.id, blob);
+    return;
+  }
+  return run(['books', 'files'], 'readwrite', (tx) => {
+    tx.objectStore('books').put(meta);
+    tx.objectStore('files').put({ id: meta.id, blob });
+  });
+}
+
+async function updateBook(id, patch) {
+  if (await useMemory()) {
+    const current = memory.books.get(id);
+    if (current) memory.books.set(id, { ...current, ...patch });
+    return;
+  }
+  return run('books', 'readwrite', async (tx) => {
+    const store = tx.objectStore('books');
+    const current = await req(store.get(id));
+    if (current) store.put({ ...current, ...patch });
+  });
+}
+
+async function deleteBook(id) {
+  if (await useMemory()) {
+    memory.books.delete(id);
+    memory.files.delete(id);
+    return;
+  }
+  return run(['books', 'files'], 'readwrite', (tx) => {
+    tx.objectStore('books').delete(id);
+    tx.objectStore('files').delete(id);
+  });
+}
+
+return { isPersistent, listBooks, getBook, getFile, addBook, updateBook, deleteBook };
+})();
+
+__modules['js/reader.js'] = (() => {
+// Renders one spine item at a time inside a sandboxed iframe. Paginated mode
+// lays the chapter out in CSS columns and scrolls horizontally page by page;
+// scrolled mode lets the chapter flow vertically.
+
+const { isExternal, resolveHref } = __modules['js/epub.js'];
+
+const THEMES = {
+  light: { bg: '#ffffff', fg: '#1d1d1f', link: '#0b57d0', force: false },
+  sepia: { bg: '#f6efe1', fg: '#4b3b2a', link: '#8a4b14', force: true },
+  grey: { bg: '#3a3b3f', fg: '#ecebe7', link: '#a8c7fa', force: true },
+  dark: { bg: '#16171a', fg: '#d7d5d0', link: '#8ab4f8', force: true },
+};
+
+const FONTS = {
+  serif: 'Georgia, "Iowan Old Style", "Palatino Linotype", Palatino, "Times New Roman", serif',
+  sans: 'system-ui, -apple-system, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif',
+  dyslexic: '"Comic Sans MS", "Comic Neue", Verdana, sans-serif',
+};
+
+// "rgb(1, 2, 3)" / "rgba(1, 2, 3, 0.5)" -> [r, g, b, a]; null for other formats.
+function parseColor(value) {
+  if (value.startsWith('#')) {
+    const n = parseInt(value.slice(1), 16);
+    return [(n >> 16) & 255, (n >> 8) & 255, n & 255, 1];
+  }
+  const m = value.match(/^rgba?\(\s*([\d.]+)[,\s]+([\d.]+)[,\s]+([\d.]+)(?:\s*[,/]\s*([\d.]+%?))?\s*\)$/);
+  if (!m) return null;
+  let a = m[4] == null ? 1 : parseFloat(m[4]);
+  if (m[4] && m[4].endsWith('%')) a /= 100;
+  return [+m[1], +m[2], +m[3], a];
+}
+
+// Composite a (possibly translucent) colour over an opaque one.
+function blend([r, g, b, a], [br, bg, bb]) {
+  return [r * a + br * (1 - a), g * a + bg * (1 - a), b * a + bb * (1 - a), 1];
+}
+
+// WCAG contrast ratio between two opaque colours.
+function contrast(c1, c2) {
+  const lum = ([r, g, b]) => {
+    const ch = (v) => { v /= 255; return v <= 0.03928 ? v / 12.92 : ((v + 0.055) / 1.055) ** 2.4; };
+    return 0.2126 * ch(r) + 0.7152 * ch(g) + 0.0722 * ch(b);
+  };
+  const [hi, lo] = [lum(c1), lum(c2)].sort((x, y) => y - x);
+  return (hi + 0.05) / (lo + 0.05);
+}
+
+function resolveTheme(name) {
+  if (name === 'auto') {
+    return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+  return THEMES[name] ? name : 'light';
+}
+
+class Reader {
+  constructor(container, book, { settings, onRelocate, onError }) {
+    this.container = container;
+    this.book = book;
+    this.settings = settings;
+    this.onRelocate = onRelocate || (() => {});
+    this.onError = onError || ((e) => console.error(e));
+    this.index = -1;
+    this.page = 0;
+    this.pages = 1;
+    this.fraction = 0;
+    this._loadToken = 0;
+    this._wheelLock = 0;
+
+    this.iframe = document.createElement('iframe');
+    this.iframe.className = 'reader-frame';
+    this.iframe.title = 'Book content';
+    // No allow-scripts: book scripts never execute. Same origin lets us style the page.
+    this.iframe.setAttribute('sandbox', 'allow-same-origin');
+    container.appendChild(this.iframe);
+
+    this._onKey = this._onKey.bind(this);
+    this._resizeObserver = new ResizeObserver(() => {
+      clearTimeout(this._resizeTimer);
+      this._resizeTimer = setTimeout(() => this._relayout(), 120);
+    });
+    this._resizeObserver.observe(container);
+  }
+
+  get paginated() {
+    return this.settings.flow !== 'scrolled';
+  }
+
+  get doc() {
+    return this.iframe.contentDocument;
+  }
+
+  get win() {
+    return this.iframe.contentWindow;
+  }
+
+  // location: { index, fraction } or { path, fragment }
+  async display(location = {}) {
+    let { index, fraction = 0, fragment = '' } = location;
+    if (location.path != null) {
+      index = this.book.spineIndexOf(location.path);
+      if (index < 0) return;
+    }
+    index = Math.min(Math.max(index || 0, 0), this.book.spine.length - 1);
+
+    if (index === this.index && this.doc && this.doc.body) {
+      this._goTo({ fraction, fragment, atEnd: location.atEnd });
+      return;
+    }
+    await this._load(index, { fraction, fragment, atEnd: location.atEnd });
+  }
+
+  async _load(index, position) {
+    const token = ++this._loadToken;
+    this._loading = true;
+    try {
+      await this._loadInner(index, position, token);
+    } finally {
+      if (token === this._loadToken) this._loading = false;
+    }
+  }
+
+  async _loadInner(index, position, token) {
+    this.iframe.style.visibility = 'hidden';
+    let html;
+    try {
+      html = await this.book.chapterHtml(index);
+    } catch (err) {
+      if (token === this._loadToken) this.iframe.style.visibility = 'visible';
+      this.onError(err);
+      return;
+    }
+    if (token !== this._loadToken) return;
+
+    await new Promise((resolve) => {
+      this.iframe.onload = resolve;
+      this.iframe.srcdoc = html;
+    });
+    if (token !== this._loadToken) return;
+
+    this.index = index;
+    this._flow = this.settings.flow;
+    this._setupDocument();
+    try { await this.doc.fonts.ready; } catch { /* not supported */ }
+    if (token !== this._loadToken) return;
+    this._layout();
+    this._goTo(position);
+    this.iframe.style.visibility = 'visible';
+  }
+
+  _setupDocument() {
+    const doc = this.doc;
+    if (!doc || !doc.documentElement) return;
+    const head = doc.head || doc.getElementsByTagName('head')[0] || doc.documentElement;
+    this._contrastTheme = null;
+    this._style = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style');
+    head.appendChild(this._style);
+
+    doc.addEventListener('keydown', this._onKey);
+    doc.addEventListener('click', (e) => this._onClick(e));
+    doc.addEventListener('wheel', (e) => this._onWheel(e), { passive: false });
+    doc.addEventListener('touchstart', (e) => {
+      const t = e.changedTouches[0];
+      this._touch = { x: t.clientX, y: t.clientY, time: Date.now() };
+    }, { passive: true });
+    doc.addEventListener('touchend', (e) => this._onTouchEnd(e), { passive: true });
+    this.win.addEventListener('scroll', () => this._onScroll());
+    // Images can finish decoding late; re-measure so the page count stays right.
+    for (const img of doc.querySelectorAll('img, image')) {
+      img.addEventListener('load', () => this._relayout(), { once: true });
+    }
+  }
+
+  _css() {
+    const s = this.settings;
+    const theme = THEMES[resolveTheme(s.theme)];
+    const W = this._width;
+    const H = this._height;
+    const M = this._margin;
+    const V = this._vpad;
+    const fontFamily = FONTS[s.fontFamily];
+    const lines = [];
+
+    lines.push(`html { font-size: ${s.fontSize}% !important; -webkit-text-size-adjust: none; text-size-adjust: none; }`);
+    lines.push(`html, body { background: ${theme.bg} !important; color: ${theme.fg} !important; }`);
+    lines.push(`a, a * { color: ${theme.link} !important; }`);
+    if (theme.force) {
+      lines.push('body *:not(a) { color: inherit !important; background-color: transparent !important; }');
+    }
+    if (fontFamily) {
+      lines.push(`body { font-family: ${fontFamily} !important; }`);
+      lines.push('body *:not(pre):not(code):not(kbd):not(samp):not(tt) { font-family: inherit !important; }');
+    }
+    if (s.lineHeight !== 'publisher') {
+      lines.push(`body, body p, body div, body li, body blockquote, body dd { line-height: ${s.lineHeight} !important; }`);
+    }
+    if (s.justify) {
+      lines.push('body p { text-align: justify !important; hyphens: auto; -webkit-hyphens: auto; }');
+    }
+    lines.push('::selection { background: rgba(255, 196, 0, 0.45); }');
+
+    if (this.paginated) {
+      const cols = this._cols;
+      lines.push(`html { width: ${W}px !important; height: ${H}px !important; margin: 0 !important; padding: 0 !important; overflow: hidden !important; max-width: none !important; }`);
+      lines.push(`body { box-sizing: border-box !important; width: auto !important; max-width: none !important; height: ${H}px !important;
+        min-height: 0 !important; margin: 0 ${M}px !important; padding: ${V}px 0 !important; overflow: visible !important;
+        column-count: ${cols} !important; column-gap: ${2 * M}px !important; column-fill: auto !important; column-width: auto !important; }`);
+      lines.push(`img, svg, video, image { max-width: 100% !important; max-height: ${H - 2 * V}px !important; object-fit: contain; box-sizing: border-box; break-inside: avoid; }`);
+      lines.push('h1, h2, h3, h4, h5, h6 { break-after: avoid; break-inside: avoid; }');
+      lines.push('p, li, blockquote { orphans: 2; widows: 2; }');
+    } else {
+      lines.push('html { overflow-x: hidden !important; overflow-y: auto !important; height: auto !important; }');
+      lines.push(`body { box-sizing: border-box !important; max-width: 46em !important; margin: 0 auto !important; padding: ${V}px ${M}px ${V * 2}px !important; }`);
+      lines.push('img, svg, video { max-width: 100% !important; height: auto; }');
+    }
+    return lines.join('\n');
+  }
+
+  _measure() {
+    const rect = this.container.getBoundingClientRect();
+    this._width = Math.max(200, Math.floor(rect.width));
+    this._height = Math.max(200, Math.floor(rect.height));
+    const W = this._width;
+    const scale = { narrow: 0.6, normal: 1, wide: 1.6 }[this.settings.margins] || 1;
+    this._margin = Math.round((W < 600 ? 20 : Math.min(72, Math.max(32, W * 0.05))) * scale);
+    this._vpad = this._height < 500 ? 20 : 40;
+    this._cols = this.settings.spread !== 'single' && W >= 1000 ? 2 : 1;
+    this.iframe.style.width = `${W}px`;
+    this.iframe.style.height = `${this._height}px`;
+  }
+
+  _layout() {
+    if (!this.doc || !this._style) return;
+    this._measure();
+    this._style.textContent = this._css();
+    this._fixContrast();
+    this._countPages();
+  }
+
+  // Themes that keep the publisher's colours (Light) can leave text unreadable,
+  // e.g. white text designed for a dark page. Recolour only text whose contrast
+  // against what is actually behind it is too low; other colours stay as-is.
+  _fixContrast() {
+    const themeName = resolveTheme(this.settings.theme);
+    if (this._contrastTheme === themeName) return;
+    this._contrastTheme = themeName;
+    const doc = this.doc;
+
+    for (const el of doc.querySelectorAll('[data-folio-color]')) {
+      const [value, priority] = JSON.parse(el.dataset.folioColor);
+      if (value) el.style.setProperty('color', value, priority); else el.style.removeProperty('color');
+      delete el.dataset.folioColor;
+    }
+    const theme = THEMES[themeName];
+    if (theme.force || !doc.body) return;
+
+    const pageBg = parseColor(theme.bg);
+    const bgCache = new Map();
+    const backgroundOf = (el) => {
+      if (!el || el.nodeType !== 1) return pageBg;
+      if (bgCache.has(el)) return bgCache.get(el);
+      const own = parseColor(this.win.getComputedStyle(el).backgroundColor);
+      const under = backgroundOf(el.parentElement);
+      const result = own && own[3] > 0 ? blend(own, under) : under;
+      bgCache.set(el, result);
+      return result;
+    };
+
+    for (const el of [doc.body, ...doc.body.querySelectorAll('*')]) {
+      const hasText = [...el.childNodes].some((n) => n.nodeType === 3 && n.nodeValue.trim());
+      if (!hasText) continue;
+      const fg = parseColor(this.win.getComputedStyle(el).color);
+      if (!fg) continue;
+      const bg = backgroundOf(el);
+      if (contrast(blend(fg, bg), bg) >= 3) continue;
+      const dark = [29, 29, 31, 1];
+      const light = [255, 255, 255, 1];
+      const replacement = contrast(dark, bg) >= contrast(light, bg) ? dark : light;
+      el.dataset.folioColor = JSON.stringify([el.style.getPropertyValue('color'), el.style.getPropertyPriority('color')]);
+      el.style.setProperty('color', `rgb(${replacement.slice(0, 3).join(',')})`, 'important');
+    }
+  }
+
+  _countPages() {
+    const el = this.doc.scrollingElement || this.doc.documentElement;
+    if (this.paginated) {
+      this.pages = Math.max(1, Math.ceil((el.scrollWidth - this._margin - 1) / this._width));
+    } else {
+      this.pages = 1;
+    }
+  }
+
+  _relayout() {
+    if (this.index < 0 || !this.doc || !this._style) return;
+    const fraction = this.fraction;
+    this._layout();
+    this._goTo({ fraction });
+  }
+
+  _goTo({ fraction = 0, fragment = '', atEnd = false } = {}) {
+    const el = this.doc.scrollingElement || this.doc.documentElement;
+    const target = fragment ? (this.doc.getElementById(fragment) || this.doc.getElementsByName(fragment)[0]) : null;
+
+    if (this.paginated) {
+      let page;
+      if (atEnd) page = this.pages - 1;
+      else if (target) {
+        const rect = target.getBoundingClientRect();
+        page = Math.floor((rect.left + this.win.scrollX) / this._width);
+      } else page = Math.floor(fraction * this.pages + 1e-6);
+      this._showPage(page);
+    } else {
+      const max = Math.max(0, el.scrollHeight - this._height);
+      let top;
+      if (atEnd) top = max;
+      else if (target) top = target.getBoundingClientRect().top + this.win.scrollY - 16;
+      else top = fraction * max;
+      this.win.scrollTo(0, Math.max(0, top));
+      this._reportScroll();
+    }
+  }
+
+  _showPage(page) {
+    this.page = Math.min(Math.max(0, page), this.pages - 1);
+    this._expectedScroll = this.page * this._width;
+    this.win.scrollTo(this._expectedScroll, 0);
+    this.fraction = this.pages > 1 ? this.page / this.pages : 0;
+    this._emit();
+  }
+
+  _reportScroll() {
+    const el = this.doc.scrollingElement || this.doc.documentElement;
+    const max = Math.max(1, el.scrollHeight - this._height);
+    this.fraction = Math.min(1, this.win.scrollY / max);
+    this._emit();
+  }
+
+  _emit() {
+    this.onRelocate({
+      index: this.index,
+      fraction: this.fraction,
+      page: this.page,
+      pages: this.pages,
+      atStart: this.index === 0 && this._atChapterStart(),
+      atEnd: this.index === this.book.spine.length - 1 && this._atChapterEnd(),
+    });
+  }
+
+  _atChapterStart() {
+    return this.paginated ? this.page === 0 : this.win.scrollY <= 2;
+  }
+
+  _atChapterEnd() {
+    if (this.paginated) return this.page >= this.pages - 1;
+    const el = this.doc.scrollingElement || this.doc.documentElement;
+    return this.win.scrollY + this._height >= el.scrollHeight - 2;
+  }
+
+  _onScroll() {
+    if (this.paginated) {
+      // Keep focus/selection changes from leaving the page half-scrolled.
+      if (this._expectedScroll != null && Math.abs(this.win.scrollX - this._expectedScroll) > 1) {
+        this.win.scrollTo(this._expectedScroll, 0);
+      }
+      return;
+    }
+    clearTimeout(this._scrollTimer);
+    this._scrollTimer = setTimeout(() => this._reportScroll(), 100);
+  }
+
+  async next() {
+    if (this.index < 0 || this._loading) return;
+    if (this.paginated) {
+      if (this.page < this.pages - 1) return this._showPage(this.page + 1);
+    } else if (!this._atChapterEnd()) {
+      this.win.scrollBy({ top: this._height - 48, behavior: 'smooth' });
+      return;
+    }
+    if (this.index < this.book.spine.length - 1) await this._load(this.index + 1, { fraction: 0 });
+  }
+
+  async prev() {
+    if (this.index < 0 || this._loading) return;
+    if (this.paginated) {
+      if (this.page > 0) return this._showPage(this.page - 1);
+    } else if (!this._atChapterStart()) {
+      this.win.scrollBy({ top: -(this._height - 48), behavior: 'smooth' });
+      return;
+    }
+    if (this.index > 0) await this._load(this.index - 1, { atEnd: true });
+  }
+
+  // True when the element with this id is on the current page or an earlier one.
+  fragmentReached(fragment) {
+    const el = this.doc && this.doc.getElementById(fragment);
+    if (!el) return false;
+    const rect = el.getBoundingClientRect();
+    return this.paginated ? rect.left < this._width : rect.top < this._height / 2;
+  }
+
+  goToHref(path, fragment) {
+    return this.display({ path, fragment });
+  }
+
+  applySettings(settings) {
+    this.settings = settings;
+    if (this.index < 0) return;
+    // Switching flow needs a fresh document so scroll state starts clean.
+    if (this._flow !== settings.flow) return this._load(this.index, { fraction: this.fraction });
+    this._relayout();
+  }
+
+  setKeyHandler(fn) {
+    this._externalKey = fn;
+  }
+
+  _onKey(e) {
+    if (this._externalKey) this._externalKey(e);
+  }
+
+  _onClick(e) {
+    const link = e.target.closest && e.target.closest('a');
+    const href = link && (link.getAttribute('href') || link.getAttributeNS('http://www.w3.org/1999/xlink', 'href'));
+    if (href) {
+      e.preventDefault();
+      if (isExternal(href)) {
+        if (/^(https?|mailto):/i.test(href)) window.open(href, '_blank', 'noopener,noreferrer');
+        return;
+      }
+      const target = resolveHref(this.book.spine[this.index].path, href);
+      if (target) this.goToHref(target.path, target.fragment).catch(this.onError);
+      return;
+    }
+    if (!this.paginated) return;
+    const selection = this.win.getSelection();
+    if (selection && !selection.isCollapsed) return;
+    const ratio = e.clientX / this._width;
+    if (ratio < 0.25) this.prev();
+    else if (ratio > 0.75) this.next();
+  }
+
+  _onWheel(e) {
+    if (!this.paginated) return;
+    e.preventDefault();
+    const now = Date.now();
+    if (now < this._wheelLock) return;
+    const delta = Math.abs(e.deltaX) > Math.abs(e.deltaY) ? e.deltaX : e.deltaY;
+    if (Math.abs(delta) < 4) return;
+    this._wheelLock = now + 350;
+    if (delta > 0) this.next(); else this.prev();
+  }
+
+  _onTouchEnd(e) {
+    if (!this.paginated || !this._touch) return;
+    const t = e.changedTouches[0];
+    const dx = t.clientX - this._touch.x;
+    const dy = t.clientY - this._touch.y;
+    if (Date.now() - this._touch.time < 800 && Math.abs(dx) > 50 && Math.abs(dx) > Math.abs(dy) * 1.5) {
+      if (dx < 0) this.next(); else this.prev();
+    }
+    this._touch = null;
+  }
+
+  destroy() {
+    this._loadToken++;
+    this._resizeObserver.disconnect();
+    clearTimeout(this._resizeTimer);
+    this.iframe.remove();
+  }
+}
+
+return { resolveTheme, Reader };
+})();
+
+__modules['js/app.js'] = (() => {
+const { Book } = __modules['js/epub.js'];
+const { Reader, resolveTheme } = __modules['js/reader.js'];
+const db = __modules['js/db.js'];
+
+const $ = (id) => document.getElementById(id);
+
+const SETTINGS_VERSION = 2;
+const DEFAULT_SETTINGS = {
+  version: SETTINGS_VERSION,
+  theme: 'grey',
+  fontSize: 100,
+  fontFamily: 'publisher',
+  lineHeight: 'publisher',
+  margins: 'normal',
+  flow: 'paginated',
+  spread: 'auto',
+  justify: false,
+};
+const THEME_COLORS = { light: '#ffffff', sepia: '#f6efe1', grey: '#3a3b3f', dark: '#16171a' };
+
+let settings = loadSettings();
+let current = null; // { id, meta, book, reader, cumulative, tocFlat }
+let coverUrls = [];
+let saveTimer = null;
+let warnedNotPersistent = false;
+
+// ---------- Settings ----------
+
+function loadSettings() {
+  try {
+    const saved = JSON.parse(localStorage.getItem('folio-settings') || '{}');
+    // v2 made Grey the default theme: books with white or pale text were
+    // unreadable on the old white default, so move Auto/Light users over once.
+    if ((saved.version || 1) < 2 && (saved.theme === 'auto' || saved.theme === 'light')) saved.theme = 'grey';
+    return { ...DEFAULT_SETTINGS, ...saved, version: SETTINGS_VERSION };
+  } catch {
+    return { ...DEFAULT_SETTINGS };
+  }
+}
+
+function saveSettings() {
+  try { localStorage.setItem('folio-settings', JSON.stringify(settings)); } catch { /* storage unavailable */ }
+}
+
+function applyAppTheme() {
+  const theme = resolveTheme(settings.theme);
+  document.documentElement.dataset.theme = theme;
+  document.querySelector('meta[name="theme-color"]').setAttribute('content', THEME_COLORS[theme]);
+}
+
+function syncSettingsUI() {
+  for (const group of document.querySelectorAll('.segmented[data-setting]')) {
+    for (const btn of group.querySelectorAll('button')) {
+      btn.setAttribute('aria-pressed', String(btn.dataset.value === settings[group.dataset.setting]));
+    }
+  }
+  for (const select of document.querySelectorAll('select[data-setting]')) {
+    select.value = settings[select.dataset.setting];
+  }
+  for (const box of document.querySelectorAll('input[type="checkbox"][data-setting]')) {
+    box.checked = !!settings[box.dataset.setting];
+  }
+  $('font-size-value').textContent = `${settings.fontSize}%`;
+}
+
+function updateSetting(key, value) {
+  settings = { ...settings, [key]: value };
+  saveSettings();
+  syncSettingsUI();
+  applyAppTheme();
+  if (current) current.reader.applySettings(settings);
+}
+
+function bindSettings() {
+  for (const group of document.querySelectorAll('.segmented[data-setting]')) {
+    group.addEventListener('click', (e) => {
+      const btn = e.target.closest('button[data-value]');
+      if (btn) updateSetting(group.dataset.setting, btn.dataset.value);
+    });
+  }
+  for (const select of document.querySelectorAll('select[data-setting]')) {
+    select.addEventListener('change', () => updateSetting(select.dataset.setting, select.value));
+  }
+  for (const box of document.querySelectorAll('input[type="checkbox"][data-setting]')) {
+    box.addEventListener('change', () => updateSetting(box.dataset.setting, box.checked));
+  }
+  $('font-smaller').addEventListener('click', () => updateSetting('fontSize', Math.max(60, settings.fontSize - 10)));
+  $('font-larger').addEventListener('click', () => updateSetting('fontSize', Math.min(250, settings.fontSize + 10)));
+  matchMedia('(prefers-color-scheme: dark)').addEventListener('change', () => {
+    if (settings.theme !== 'auto') return;
+    applyAppTheme();
+    if (current) current.reader.applySettings(settings);
+  });
+}
+
+// ---------- Toasts ----------
+
+function toast(message, { error = false, timeout = 3500 } = {}) {
+  const el = document.createElement('div');
+  el.className = `toast${error ? ' error' : ''}`;
+  el.textContent = message;
+  $('toast-region').appendChild(el);
+  setTimeout(() => el.remove(), timeout);
+}
+
+// ---------- Library ----------
+
+function hueFor(text) {
+  let h = 0;
+  for (const ch of text) h = (h * 31 + ch.codePointAt(0)) % 360;
+  return h;
+}
+
+async function renderLibrary() {
+  for (const url of coverUrls) URL.revokeObjectURL(url);
+  coverUrls = [];
+
+  const books = await db.listBooks();
+  books.sort((a, b) => (b.lastOpened || b.addedAt) - (a.lastOpened || a.addedAt));
+  const grid = $('book-grid');
+  grid.replaceChildren();
+  $('empty-state').hidden = books.length > 0;
+
+  for (const meta of books) {
+    const li = document.createElement('li');
+    li.className = 'card';
+
+    const open = document.createElement('button');
+    open.className = 'card-open';
+    open.setAttribute('aria-label', `Open ${meta.title}`);
+    open.addEventListener('click', () => { location.hash = `#/book/${meta.id}`; });
+
+    const cover = document.createElement('div');
+    cover.className = 'cover';
+    if (meta.cover) {
+      const img = document.createElement('img');
+      const url = URL.createObjectURL(meta.cover);
+      coverUrls.push(url);
+      img.src = url;
+      img.alt = '';
+      img.loading = 'lazy';
+      cover.appendChild(img);
+    } else {
+      const hue = hueFor(meta.title);
+      const fb = document.createElement('div');
+      fb.className = 'cover-fallback';
+      fb.style.background = `linear-gradient(160deg, hsl(${hue} 45% 38%), hsl(${(hue + 40) % 360} 50% 22%))`;
+      const t = document.createElement('div');
+      t.className = 'cf-title';
+      t.textContent = meta.title;
+      const a = document.createElement('div');
+      a.className = 'cf-author';
+      a.textContent = meta.author;
+      fb.append(t, a);
+      cover.appendChild(fb);
+    }
+    open.appendChild(cover);
+
+    const info = document.createElement('div');
+    info.className = 'card-meta';
+    const title = document.createElement('div');
+    title.className = 'card-title';
+    title.textContent = meta.title;
+    const author = document.createElement('div');
+    author.className = 'card-author';
+    author.textContent = meta.author || 'Unknown author';
+    info.append(title, author);
+
+    const pct = Math.round((meta.progress || 0) * 100);
+    const progress = document.createElement('div');
+    progress.className = 'card-progress';
+    if (meta.lastOpened) {
+      const bar = document.createElement('div');
+      bar.className = 'bar';
+      const fill = document.createElement('span');
+      fill.style.width = `${pct}%`;
+      bar.appendChild(fill);
+      const label = document.createElement('span');
+      label.textContent = `${pct}%`;
+      progress.append(bar, label);
+    } else {
+      progress.textContent = 'New';
+    }
+    info.appendChild(progress);
+    open.appendChild(info);
+
+    const del = document.createElement('button');
+    del.className = 'card-delete';
+    del.title = 'Remove from library';
+    del.setAttribute('aria-label', `Remove ${meta.title}`);
+    del.innerHTML = '<svg class="icon"><use href="#i-trash"/></svg>';
+    del.addEventListener('click', async (e) => {
+      e.stopPropagation();
+      if (!confirm(`Remove “${meta.title}” from this device?`)) return;
+      await db.deleteBook(meta.id);
+      renderLibrary();
+    });
+
+    li.append(open, del);
+    grid.appendChild(li);
+  }
+}
+
+async function bookId(buffer, file) {
+  try {
+    const digest = await crypto.subtle.digest('SHA-256', buffer);
+    return [...new Uint8Array(digest)].slice(0, 16).map((b) => b.toString(16).padStart(2, '0')).join('');
+  } catch {
+    // crypto.subtle needs a secure context; fall back to file attributes.
+    return `f-${file.size}-${file.lastModified}-${file.name}`.replace(/[^\w.-]/g, '_');
+  }
+}
+
+async function importFiles(fileList) {
+  const files = [...fileList].filter((f) => /\.epub$/i.test(f.name) || f.type === 'application/epub+zip');
+  if (!files.length) {
+    toast('Please choose .epub files.', { error: true });
+    return [];
+  }
+  if (navigator.storage && navigator.storage.persist) navigator.storage.persist().catch(() => {});
+
+  const added = [];
+  for (const file of files) {
+    try {
+      const buffer = await file.arrayBuffer();
+      const id = await bookId(buffer, file);
+      if (await db.getBook(id)) {
+        toast(`Already in your library: ${file.name}`);
+        added.push(id);
+        continue;
+      }
+      const book = await Book.open(buffer);
+      const cover = await book.getCoverBlob().catch(() => null);
+      await db.addBook({
+        id,
+        title: book.metadata.title || file.name.replace(/\.epub$/i, ''),
+        author: book.metadata.creator,
+        cover,
+        fileName: file.name,
+        size: file.size,
+        addedAt: Date.now(),
+        lastOpened: 0,
+        location: null,
+        progress: 0,
+      }, new Blob([buffer], { type: 'application/epub+zip' }));
+      book.destroy();
+      added.push(id);
+      toast(`Added “${book.metadata.title}”`);
+    } catch (err) {
+      console.error(err);
+      toast(`Couldn't open ${file.name}: ${err.message}`, { error: true, timeout: 6000 });
+    }
+  }
+  if (added.length && !warnedNotPersistent && !(await db.isPersistent())) {
+    warnedNotPersistent = true;
+    toast('This browser won’t let Folio save books here, so they’ll be gone when you close the tab. Host Folio on a website to keep a library.', { timeout: 9000 });
+  }
+  await renderLibrary();
+  return added;
+}
+
+// ---------- Reader ----------
+
+function flattenToc(items, book, depth = 0, out = []) {
+  for (const item of items) {
+    out.push({ ...item, depth, spineIndex: item.path ? book.spineIndexOf(item.path) : -1 });
+    flattenToc(item.children, book, depth + 1, out);
+  }
+  return out;
+}
+
+function renderToc() {
+  const { book } = current;
+  const list = $('toc-list');
+  list.replaceChildren();
+  let n = 0;
+  const build = (items) => {
+    const ul = document.createElement('ul');
+    for (const item of items) {
+      const li = document.createElement('li');
+      const btn = document.createElement('button');
+      btn.textContent = item.label;
+      btn.dataset.tocIndex = String(n++);
+      if (!item.path || book.spineIndexOf(item.path) < 0) btn.disabled = true;
+      btn.addEventListener('click', () => {
+        closePanels();
+        current.reader.goToHref(item.path, item.fragment).catch(showError);
+      });
+      li.appendChild(btn);
+      if (item.children.length) li.appendChild(build(item.children));
+      ul.appendChild(li);
+    }
+    return ul;
+  };
+  list.appendChild(build(book.toc));
+}
+
+// The TOC entry for a location is the last one that starts at or before it.
+function currentTocIndex(index) {
+  let best = -1;
+  current.tocFlat.forEach((item, i) => {
+    if (item.spineIndex < 0 || item.spineIndex > index) return;
+    if (item.spineIndex === index && item.fragment && !current.reader.fragmentReached(item.fragment)) return;
+    if (best < 0 || item.spineIndex >= current.tocFlat[best].spineIndex) best = i;
+  });
+  return best;
+}
+
+function onRelocate(loc) {
+  if (!current) return;
+  const { book, cumulative } = current;
+  const progress = Math.min(1, (cumulative[loc.index] + loc.fraction * book.spine[loc.index].size) / book.totalSize);
+  const pct = Math.round(progress * 100);
+  $('progress').value = String(Math.round(progress * 1000));
+  $('progress-text').textContent = `${pct}%`;
+
+  const tocIndex = currentTocIndex(loc.index);
+  $('chapter-title').textContent = tocIndex >= 0 ? current.tocFlat[tocIndex].label : '';
+  for (const btn of $('toc-list').querySelectorAll('button.active')) btn.classList.remove('active');
+  const activeBtn = $('toc-list').querySelector(`button[data-toc-index="${tocIndex}"]`);
+  if (activeBtn) activeBtn.classList.add('active');
+
+  $('page-info').textContent = settings.flow === 'scrolled'
+    ? `Section ${loc.index + 1} of ${book.spine.length}`
+    : `Page ${loc.page + 1} of ${loc.pages}`;
+  $('btn-prev').disabled = !!loc.atStart;
+  $('btn-next').disabled = !!loc.atEnd;
+
+  const { id } = current;
+  clearTimeout(saveTimer);
+  saveTimer = setTimeout(() => {
+    db.updateBook(id, { location: { index: loc.index, fraction: loc.fraction }, progress, lastOpened: Date.now() });
+  }, 400);
+}
+
+function showError(err) {
+  console.error(err);
+  toast(err && err.message ? err.message : String(err), { error: true, timeout: 6000 });
+}
+
+async function openBook(id) {
+  closeBook();
+  showView('reader');
+  $('viewer-loading').hidden = false;
+  $('book-title').textContent = '';
+  $('chapter-title').textContent = '';
+  try {
+    const meta = await db.getBook(id);
+    const blob = meta && await db.getFile(id);
+    if (!blob) throw new Error('That book is no longer in your library.');
+    const book = await Book.open(await blob.arrayBuffer());
+
+    const cumulative = [];
+    book.spine.reduce((sum, s, i) => { cumulative[i] = sum; return sum + s.size; }, 0);
+    current = { id, meta, book, cumulative, tocFlat: flattenToc(book.toc, book) };
+    document.title = `${meta.title} — Folio`;
+    $('book-title').textContent = meta.title;
+    renderToc();
+
+    current.reader = new Reader($('viewer'), book, { settings, onRelocate, onError: showError });
+    current.reader.setKeyHandler(onKey);
+    const start = meta.location || { index: Math.max(0, book.spine.findIndex((s) => s.linear)) };
+    await current.reader.display(start);
+    db.updateBook(id, { lastOpened: Date.now() });
+  } catch (err) {
+    showError(err);
+    location.hash = '';
+  } finally {
+    $('viewer-loading').hidden = true;
+  }
+}
+
+function closeBook() {
+  closePanels();
+  if (!current) return;
+  clearTimeout(saveTimer);
+  if (current.reader) {
+    const r = current.reader;
+    if (r.index >= 0) {
+      const progress = Number($('progress').value) / 1000;
+      db.updateBook(current.id, { location: { index: r.index, fraction: r.fraction }, progress, lastOpened: Date.now() });
+    }
+    r.destroy();
+  }
+  current.book.destroy();
+  current = null;
+  document.title = 'Folio — EPUB Reader';
+}
+
+function seek(overall) {
+  if (!current) return;
+  const { book, cumulative } = current;
+  const target = overall * book.totalSize;
+  let index = 0;
+  while (index < book.spine.length - 1 && cumulative[index + 1] <= target) index++;
+  const fraction = Math.min(0.999, Math.max(0, (target - cumulative[index]) / book.spine[index].size));
+  current.reader.display({ index, fraction }).catch(showError);
+}
+
+// ---------- Panels ----------
+
+function openPanel(name) {
+  const panel = $(name === 'toc' ? 'toc-panel' : 'settings-panel');
+  const wasOpen = !panel.hidden;
+  closePanels();
+  if (wasOpen) return;
+  panel.hidden = false;
+  $('scrim').hidden = false;
+  $(name === 'toc' ? 'btn-toc' : 'btn-settings').setAttribute('aria-expanded', 'true');
+  if (name === 'toc') {
+    const active = panel.querySelector('button.active');
+    if (active) active.scrollIntoView({ block: 'center' });
+    (active || panel.querySelector('button:not([data-close])'))?.focus();
+  } else {
+    panel.querySelector('button, select, input')?.focus();
+  }
+}
+
+function closePanels() {
+  $('toc-panel').hidden = true;
+  $('settings-panel').hidden = true;
+  $('scrim').hidden = true;
+  $('btn-toc').setAttribute('aria-expanded', 'false');
+  $('btn-settings').setAttribute('aria-expanded', 'false');
+}
+
+function panelsOpen() {
+  return !$('toc-panel').hidden || !$('settings-panel').hidden;
+}
+
+// ---------- Keyboard ----------
+
+function onKey(e) {
+  if (!current || $('reader-view').hidden) return;
+  if (e.ctrlKey || e.metaKey || e.altKey) return;
+  const tag = (e.target.tagName || '').toLowerCase();
+  if (tag === 'input' || tag === 'select' || tag === 'textarea') {
+    if (e.key === 'Escape') closePanels();
+    return;
+  }
+  if (e.key === 'Escape') {
+    if (panelsOpen()) { closePanels(); e.preventDefault(); }
+    return;
+  }
+  if (panelsOpen()) return;
+  const paginated = settings.flow !== 'scrolled';
+  switch (e.key) {
+    case 'ArrowRight':
+    case 'PageDown':
+      e.preventDefault(); current.reader.next(); break;
+    case 'ArrowLeft':
+    case 'PageUp':
+      e.preventDefault(); current.reader.prev(); break;
+    case ' ':
+      e.preventDefault();
+      if (e.shiftKey) current.reader.prev(); else current.reader.next();
+      break;
+    case 'ArrowDown':
+      if (paginated) { e.preventDefault(); current.reader.next(); }
+      break;
+    case 'ArrowUp':
+      if (paginated) { e.preventDefault(); current.reader.prev(); }
+      break;
+    case 't':
+    case 'T':
+      openPanel('toc'); break;
+    default:
+  }
+}
+
+// ---------- Routing & views ----------
+
+function showView(name) {
+  $('library-view').hidden = name !== 'library';
+  $('reader-view').hidden = name !== 'reader';
+}
+
+async function route() {
+  const match = location.hash.match(/^#\/book\/(.+)$/);
+  if (match) {
+    const id = decodeURIComponent(match[1]);
+    if (!current || current.id !== id) await openBook(id);
+  } else {
+    closeBook();
+    showView('library');
+    await renderLibrary();
+  }
+}
+
+// ---------- Drag & drop, file handling ----------
+
+function bindDragDrop() {
+  let depth = 0;
+  const overlay = $('drop-overlay');
+  const hasFiles = (e) => e.dataTransfer && [...e.dataTransfer.types].includes('Files');
+  window.addEventListener('dragenter', (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth++;
+    overlay.hidden = false;
+  });
+  window.addEventListener('dragover', (e) => { if (hasFiles(e)) e.preventDefault(); });
+  window.addEventListener('dragleave', () => {
+    depth = Math.max(0, depth - 1);
+    if (!depth) overlay.hidden = true;
+  });
+  window.addEventListener('drop', async (e) => {
+    if (!hasFiles(e)) return;
+    e.preventDefault();
+    depth = 0;
+    overlay.hidden = true;
+    const ids = await importFiles(e.dataTransfer.files);
+    if (ids.length === 1 && $('library-view').hidden === false) location.hash = `#/book/${ids[0]}`;
+  });
+
+  // Installed app on desktop: "Open with Folio" from the file manager.
+  if ('launchQueue' in window) {
+    window.launchQueue.setConsumer(async (params) => {
+      if (!params.files || !params.files.length) return;
+      const files = await Promise.all(params.files.map((h) => h.getFile()));
+      const ids = await importFiles(files);
+      if (ids.length) location.hash = `#/book/${ids[0]}`;
+    });
+  }
+}
+
+// ---------- Offline support ----------
+
+function registerServiceWorker() {
+  const status = $('offline-status');
+  const show = (icon, text) => {
+    status.innerHTML = `<svg class="icon"><use href="#${icon}"/></svg>`;
+    status.append(text);
+    status.hidden = false;
+  };
+  const refresh = () => {
+    if (!navigator.onLine) show('i-cloud-off', 'Offline');
+    else if (navigator.serviceWorker && navigator.serviceWorker.controller) show('i-check', 'Works offline');
+    else status.hidden = true;
+  };
+  window.addEventListener('online', refresh);
+  window.addEventListener('offline', refresh);
+
+  // Opened straight from disk (single-file build): nothing to cache, already offline.
+  if (location.protocol === 'file:') { show('i-check', 'Works offline'); return; }
+  if (!('serviceWorker' in navigator)) { refresh(); return; }
+  navigator.serviceWorker.register('sw.js').then((reg) => {
+    reg.addEventListener('updatefound', () => {
+      const worker = reg.installing;
+      worker && worker.addEventListener('statechange', () => {
+        if (worker.state === 'installed' && navigator.serviceWorker.controller) {
+          toast('An update is ready — it will be used next time you open Folio.', { timeout: 6000 });
+        }
+      });
+    });
+  }).catch((err) => console.warn('Service worker registration failed', err));
+  navigator.serviceWorker.addEventListener('controllerchange', refresh);
+  navigator.serviceWorker.ready.then(refresh);
+  refresh();
+}
+
+// ---------- Init ----------
+
+function init() {
+  applyAppTheme();
+  syncSettingsUI();
+  bindSettings();
+  bindDragDrop();
+
+  $('file-input').addEventListener('change', async (e) => {
+    const ids = await importFiles(e.target.files);
+    e.target.value = '';
+    if (ids.length === 1) location.hash = `#/book/${ids[0]}`;
+  });
+  $('btn-library').addEventListener('click', () => { location.hash = ''; });
+  $('btn-toc').addEventListener('click', () => openPanel('toc'));
+  $('btn-settings').addEventListener('click', () => openPanel('settings'));
+  $('scrim').addEventListener('click', closePanels);
+  for (const btn of document.querySelectorAll('[data-close]')) btn.addEventListener('click', closePanels);
+  $('btn-prev').addEventListener('click', () => current && current.reader.prev());
+  $('btn-next').addEventListener('click', () => current && current.reader.next());
+  $('progress').addEventListener('input', (e) => {
+    $('progress-text').textContent = `${Math.round(Number(e.target.value) / 10)}%`;
+  });
+  $('progress').addEventListener('change', (e) => seek(Number(e.target.value) / 1000));
+  document.addEventListener('keydown', onKey);
+  window.addEventListener('hashchange', route);
+  window.addEventListener('pagehide', () => {
+    if (current && current.reader.index >= 0) {
+      db.updateBook(current.id, { location: { index: current.reader.index, fraction: current.reader.fraction } });
+    }
+  });
+
+  registerServiceWorker();
+  route();
+}
+
+init();
+
+return {  };
+})();
+})();
+</script>
+</body>
+</html>
