@@ -2,6 +2,8 @@
 
 Folio is an EPUB reader that runs entirely in the browser. You host it as a plain static website. After the first visit it works with no network connection, and the books people add never leave their device.
 
+**Open Folio:** https://natravous.github.io/epub-reader-project/ (you can also download the single-file version: [folio.html](https://natravous.github.io/epub-reader-project/dist/folio.html)).
+
 ## Features
 
 - **Works offline.** A service worker precaches the app, and books are stored in IndexedDB. People can also install it as an app (PWA).
@@ -12,7 +14,7 @@ Folio is an EPUB reader that runs entirely in the browser. You host it as a plai
   - Table of contents (EPUB 3 nav or EPUB 2 NCX) that highlights the current chapter
   - Progress slider for jumping anywhere in the book
   - Internal links and footnotes work; external links open in a new tab
-- **Display settings:** Grey (the default), Auto, Light, Sepia or Dark theme; text size; font; line spacing; margins; justified text.
+- **Display settings:** Grey (the default), Auto, Light, Sepia or Dark theme; Normal (book-shaped) or Wide page width; text size; font; line spacing; margins; justified text.
 - **Navigation:** arrow keys, PageUp/PageDown, Space, mouse wheel, tapping the left or right edge, swiping, or `T` to open the contents.
 - **Safe rendering:** scripts inside books are removed, and each chapter is shown in a sandboxed iframe that cannot run scripts.
 
@@ -46,9 +48,19 @@ Then open the URL it prints (for example http://localhost:8000).
 
 ## Deploying
 
-Upload the folder to any static host, such as GitHub Pages, Netlify, Cloudflare Pages, or S3. Offline support needs **HTTPS**; `localhost` is the only exception. All paths are relative, so the app works from a subfolder too, for example `https://example.com/reader/`.
+Upload the folder to any static host, such as GitHub Pages (see below), Netlify, Cloudflare Pages, or S3. Offline support needs **HTTPS**; `localhost` is the only exception. All paths are relative, so the app works from a subfolder too, for example `https://example.com/reader/`.
 
 When you change any app file, bump `VERSION` in [sw.js](sw.js). Returning visitors then get the new version on their next visit.
+
+### GitHub Pages
+
+This repo deploys straight from the `main` branch, and there's no build step. The `.nojekyll` file tells GitHub to serve the files as they are.
+
+1. On GitHub, go to **Settings → Pages**.
+2. Under **Build and deployment**, set **Source** to *Deploy from a branch*, choose `main` and `/ (root)`, then click **Save**.
+3. After about a minute the site is live at `https://<user>.github.io/<repo>/`.
+
+GitHub Pages on a free account only publishes public repositories.
 
 ## Project layout
 

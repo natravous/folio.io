@@ -65,6 +65,10 @@ export class Reader {
     this.fraction = 0;
     this._loadToken = 0;
     this._wheelLock = 0;
+    this.pageCounts = null; // pages per spine item for the current layout
+    this._countKey = null;
+    this._countToken = 0;
+    this._counter = null;
 
     this.iframe = document.createElement('iframe');
     this.iframe.className = 'reader-frame';
@@ -79,6 +83,14 @@ export class Reader {
       this._resizeTimer = setTimeout(() => this._relayout(), 120);
     });
     this._resizeObserver.observe(container);
+
+    // Clicks in the blank margin beside a centred page turn the page too.
+    this._onGutterClick = (e) => {
+      if (e.target !== container || !this.paginated) return;
+      const rect = container.getBoundingClientRect();
+      if (e.clientX - rect.left < rect.width / 2) this.prev(); else this.next();
+    };
+    container.addEventListener('click', this._onGutterClick);
   }
 
   get paginated() {
@@ -209,7 +221,7 @@ export class Reader {
       lines.push('p, li, blockquote { orphans: 2; widows: 2; }');
     } else {
       lines.push('html { overflow-x: hidden !important; overflow-y: auto !important; height: auto !important; }');
-      lines.push(`body { box-sizing: border-box !important; max-width: 46em !important; margin: 0 auto !important; padding: ${V}px ${M}px ${V * 2}px !important; }`);
+      lines.push(`body { box-sizing: border-box !important; max-width: ${s.pageWidth === 'wide' ? 'none' : '46em'} !important; margin: 0 auto !important; padding: ${V}px ${M}px ${V * 2}px !important; }`);
       lines.push('img, svg, video { max-width: 100% !important; height: auto; }');
     }
     return lines.join('\n');
@@ -217,15 +229,29 @@ export class Reader {
 
   _measure() {
     const rect = this.container.getBoundingClientRect();
-    this._width = Math.max(200, Math.floor(rect.width));
-    this._height = Math.max(200, Math.floor(rect.height));
-    const W = this._width;
+    const available = Math.max(200, Math.floor(rect.width));
+    const H = Math.max(200, Math.floor(rect.height));
     const scale = { narrow: 0.6, normal: 1, wide: 1.6 }[this.settings.margins] || 1;
-    this._margin = Math.round((W < 600 ? 20 : Math.min(72, Math.max(32, W * 0.05))) * scale);
-    this._vpad = this._height < 500 ? 20 : 40;
-    this._cols = this.settings.spread !== 'single' && W >= 1000 ? 2 : 1;
-    this.iframe.style.width = `${W}px`;
-    this.iframe.style.height = `${this._height}px`;
+    const wide = this.settings.pageWidth === 'wide';
+
+    if (this.paginated) {
+      this._cols = this.settings.spread !== 'single' && available >= 1000 ? 2 : 1;
+      // Normal: each page keeps a book-like 3:4 shape (capped for line length)
+      // and the spread is centred. Wide: pages share all available width.
+      const pageW = wide
+        ? available / this._cols
+        : Math.min(available / this._cols, Math.max(320, H * 0.75), 760);
+      this._width = Math.floor(pageW * this._cols);
+      this._margin = Math.round((pageW < 500 ? 20 : Math.min(64, Math.max(28, pageW * 0.07))) * scale);
+    } else {
+      this._cols = 1;
+      this._width = available;
+      this._margin = Math.round((available < 600 ? 20 : Math.min(72, Math.max(32, available * 0.05))) * scale);
+    }
+    this._height = H;
+    this._vpad = H < 500 ? 20 : 40;
+    this.iframe.style.width = `${this._width}px`;
+    this.iframe.style.height = `${H}px`;
   }
 
   _layout() {
@@ -234,6 +260,71 @@ export class Reader {
     this._style.textContent = this._css();
     this._fixContrast();
     this._countPages();
+    if (this.paginated) {
+      const key = this._layoutKey();
+      if (key !== this._countKey) {
+        this._countKey = key;
+        this.pageCounts = new Array(this.book.spine.length).fill(null);
+        this._countAllPages();
+      }
+      this.pageCounts[this.index] = this.pages;
+    }
+  }
+
+  // Everything that changes how many pages a chapter takes.
+  _layoutKey() {
+    const s = this.settings;
+    return JSON.stringify([this._width, this._height, this._cols, this._margin, this._vpad,
+      s.fontSize, s.fontFamily, s.lineHeight, s.justify]);
+  }
+
+  // Lays out every chapter in a hidden frame with the current settings to get
+  // whole-book page numbers. Restarts whenever the layout key changes.
+  async _countAllPages() {
+    const token = ++this._countToken;
+    await new Promise((r) => setTimeout(r, 300)); // let the visible chapter render first
+    if (token !== this._countToken) return;
+
+    if (!this._counter) {
+      this._counter = document.createElement('iframe');
+      this._counter.setAttribute('sandbox', 'allow-same-origin');
+      this._counter.setAttribute('aria-hidden', 'true');
+      this._counter.tabIndex = -1;
+      this._counter.style.cssText = 'position:absolute;left:-100000px;top:0;visibility:hidden;pointer-events:none;border:0;';
+      this.container.appendChild(this._counter);
+    }
+    const frame = this._counter;
+    const W = this._width;
+    const M = this._margin;
+    const css = this._css();
+    frame.style.width = `${W}px`;
+    frame.style.height = `${this._height}px`;
+
+    for (let i = 0; i < this.book.spine.length; i++) {
+      if (token !== this._countToken) return;
+      if (this.pageCounts[i] != null) continue;
+      try {
+        const html = await this.book.chapterHtml(i);
+        if (token !== this._countToken) return;
+        await new Promise((resolve) => {
+          frame.onload = resolve;
+          frame.srcdoc = html;
+        });
+        const doc = frame.contentDocument;
+        const style = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style');
+        style.textContent = css;
+        (doc.head || doc.documentElement).appendChild(style);
+        try { await doc.fonts.ready; } catch { /* not supported */ }
+        if (token !== this._countToken) return;
+        const el = doc.scrollingElement || doc.documentElement;
+        if (this.pageCounts[i] == null) this.pageCounts[i] = Math.max(1, Math.ceil((el.scrollWidth - M - 1) / W));
+      } catch (err) {
+        console.warn('Could not count pages for chapter', i, err);
+        this.pageCounts[i] = 1;
+      }
+    }
+    frame.removeAttribute('srcdoc');
+    if (token === this._countToken && this.index >= 0) this._emit();
   }
 
   // Themes that keep the publisher's colours (Light) can leave text unreadable,
@@ -335,11 +426,19 @@ export class Reader {
   }
 
   _emit() {
+    let bookPage = null;
+    let bookPages = null;
+    if (this.paginated && this.pageCounts && this.pageCounts.every((c) => c != null)) {
+      bookPages = this.pageCounts.reduce((a, b) => a + b, 0);
+      bookPage = this.pageCounts.slice(0, this.index).reduce((a, b) => a + b, 0) + this.page + 1;
+    }
     this.onRelocate({
       index: this.index,
       fraction: this.fraction,
       page: this.page,
       pages: this.pages,
+      bookPage,
+      bookPages,
       atStart: this.index === 0 && this._atChapterStart(),
       atEnd: this.index === this.book.spine.length - 1 && this._atChapterEnd(),
     });
@@ -462,8 +561,11 @@ export class Reader {
 
   destroy() {
     this._loadToken++;
+    this._countToken++;
     this._resizeObserver.disconnect();
     clearTimeout(this._resizeTimer);
+    this.container.removeEventListener('click', this._onGutterClick);
     this.iframe.remove();
+    if (this._counter) this._counter.remove();
   }
 }

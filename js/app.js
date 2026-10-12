@@ -14,6 +14,7 @@ const DEFAULT_SETTINGS = {
   margins: 'normal',
   flow: 'paginated',
   spread: 'auto',
+  pageWidth: 'normal',
   justify: false,
 };
 const THEME_COLORS = { light: '#ffffff', sepia: '#f6efe1', grey: '#3a3b3f', dark: '#16171a' };
@@ -320,9 +321,18 @@ function onRelocate(loc) {
   const activeBtn = $('toc-list').querySelector(`button[data-toc-index="${tocIndex}"]`);
   if (activeBtn) activeBtn.classList.add('active');
 
-  $('page-info').textContent = settings.flow === 'scrolled'
-    ? `Section ${loc.index + 1} of ${book.spine.length}`
-    : `Page ${loc.page + 1} of ${loc.pages}`;
+  const info = $('page-info');
+  if (settings.flow === 'scrolled') {
+    info.textContent = `Section ${loc.index + 1} of ${book.spine.length}`;
+    info.title = '';
+  } else if (loc.bookPages) {
+    info.textContent = `Page ${loc.bookPage} of ${loc.bookPages}`;
+    info.title = `Page ${loc.page + 1} of ${loc.pages} in this section`;
+  } else {
+    // Whole-book numbers appear once every chapter has been laid out.
+    info.textContent = `Page ${loc.page + 1} of ${loc.pages} · counting…`;
+    info.title = 'Counting pages in the whole book';
+  }
   $('btn-prev').disabled = !!loc.atStart;
   $('btn-next').disabled = !!loc.atEnd;
 
