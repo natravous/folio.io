@@ -2,7 +2,7 @@
 
 Folio is an EPUB reader that runs entirely in the browser. You host it as a plain static website. After the first visit it works with no network connection, and the books people add never leave their device.
 
-**Open Folio:** https://natravous.github.io/epub-reader-project/ (you can also download the single-file version: [folio.html](https://natravous.github.io/epub-reader-project/dist/folio.html)).
+**Open Folio:** https://natravous.github.io/folio.io/ (you can also download the single-file version: [folio.html](https://natravous.github.io/folio.io/dist/folio.html)).
 
 ## Features
 
