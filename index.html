@@ -1,0 +1,178 @@
+<!doctype html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Folio — EPUB Reader</title>
+  <meta name="description" content="A private EPUB reader that runs entirely in your browser and works offline.">
+  <meta name="theme-color" content="#ffffff">
+  <link rel="manifest" href="manifest.webmanifest">
+  <link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+  <link rel="apple-touch-icon" href="icons/icon-192.png">
+  <link rel="stylesheet" href="css/style.css">
+  <script type="module" src="js/app.js"></script>
+</head>
+<body>
+  <svg width="0" height="0" style="position:absolute" aria-hidden="true">
+    <symbol id="i-back" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></symbol>
+    <symbol id="i-next" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></symbol>
+    <symbol id="i-toc" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h10"/></symbol>
+    <symbol id="i-type" viewBox="0 0 24 24"><path d="M4 7V5h11v2M9.5 5v14M7 19h5M14 12v-1.5h7V12M17.5 10.5V19M16 19h3"/></symbol>
+    <symbol id="i-plus" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></symbol>
+    <symbol id="i-close" viewBox="0 0 24 24"><path d="M6 6l12 12M18 6L6 18"/></symbol>
+    <symbol id="i-trash" viewBox="0 0 24 24"><path d="M4 7h16M10 11v6M14 11v6M5 7l1 13h12l1-13M9 7V4h6v3"/></symbol>
+    <symbol id="i-book" viewBox="0 0 24 24"><path d="M4 5.5A2.5 2.5 0 016.5 3H20v15H6.5A2.5 2.5 0 004 20.5zM4 20.5A2.5 2.5 0 006.5 23H20v-5"/></symbol>
+    <symbol id="i-cloud-off" viewBox="0 0 24 24"><path d="M3 3l18 18M8 8a5 5 0 00-1 9.9h10M17.8 17.6A4 4 0 0016 10h-1.3a7 7 0 00-6.3-4.9"/></symbol>
+    <symbol id="i-check" viewBox="0 0 24 24"><path d="M5 12.5l4.5 4.5L19 7.5"/></symbol>
+  </svg>
+
+  <!-- Library -->
+  <section id="library-view" class="view" aria-label="Library">
+    <header class="lib-header">
+      <div class="brand">
+        <svg class="icon brand-icon"><use href="#i-book"/></svg>
+        <h1>Folio</h1>
+      </div>
+      <div class="lib-actions">
+        <span id="offline-status" class="pill" hidden></span>
+        <label class="btn btn-primary" for="file-input">
+          <svg class="icon"><use href="#i-plus"/></svg><span>Add books</span>
+        </label>
+        <input id="file-input" type="file" accept=".epub,application/epub+zip" multiple hidden>
+      </div>
+    </header>
+
+    <main class="lib-main">
+      <div id="empty-state" class="empty" hidden>
+        <svg class="icon empty-icon"><use href="#i-book"/></svg>
+        <h2>Your library is empty</h2>
+        <p>Drop <code>.epub</code> files anywhere on this page, or choose them from your device. Books are stored only in this browser and stay readable offline.</p>
+        <label class="btn btn-primary" for="file-input"><svg class="icon"><use href="#i-plus"/></svg><span>Choose EPUB files</span></label>
+      </div>
+      <ul id="book-grid" class="grid" aria-label="Books"></ul>
+    </main>
+  </section>
+
+  <!-- Reader -->
+  <section id="reader-view" class="view" aria-label="Reader" hidden>
+    <header class="reader-bar">
+      <button id="btn-library" class="icon-btn" aria-label="Back to library" title="Library"><svg class="icon"><use href="#i-back"/></svg></button>
+      <button id="btn-toc" class="icon-btn" aria-label="Table of contents" title="Contents (T)" aria-expanded="false" aria-controls="toc-panel"><svg class="icon"><use href="#i-toc"/></svg></button>
+      <div class="reader-title">
+        <div id="book-title" class="t-book"></div>
+        <div id="chapter-title" class="t-chapter"></div>
+      </div>
+      <button id="btn-settings" class="icon-btn" aria-label="Reading settings" title="Settings" aria-expanded="false" aria-controls="settings-panel"><svg class="icon"><use href="#i-type"/></svg></button>
+    </header>
+
+    <div class="reader-body">
+      <button id="btn-prev" class="side-btn" aria-label="Previous page"><svg class="icon"><use href="#i-back"/></svg></button>
+      <div id="viewer" class="viewer">
+        <div id="viewer-loading" class="loading" hidden><div class="spinner"></div></div>
+      </div>
+      <button id="btn-next" class="side-btn" aria-label="Next page"><svg class="icon"><use href="#i-next"/></svg></button>
+    </div>
+
+    <footer class="reader-foot">
+      <span id="page-info" class="foot-text"></span>
+      <input id="progress" type="range" min="0" max="1000" value="0" aria-label="Book progress">
+      <span id="progress-text" class="foot-text foot-pct">0%</span>
+    </footer>
+
+    <aside id="toc-panel" class="drawer" aria-label="Table of contents" hidden>
+      <div class="panel-head">
+        <h2>Contents</h2>
+        <button class="icon-btn" data-close aria-label="Close contents"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+      <nav id="toc-list" class="toc"></nav>
+    </aside>
+
+    <aside id="settings-panel" class="popover" aria-label="Reading settings" hidden>
+      <div class="panel-head">
+        <h2>Display</h2>
+        <button class="icon-btn" data-close aria-label="Close settings"><svg class="icon"><use href="#i-close"/></svg></button>
+      </div>
+
+      <div class="field">
+        <span class="label">Theme</span>
+        <div class="segmented" data-setting="theme">
+          <button data-value="auto">Auto</button>
+          <button data-value="light">Light</button>
+          <button data-value="sepia">Sepia</button>
+          <button data-value="dark">Dark</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <span class="label">Text size</span>
+        <div class="stepper">
+          <button id="font-smaller" aria-label="Smaller text">A−</button>
+          <output id="font-size-value">100%</output>
+          <button id="font-larger" aria-label="Larger text">A+</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-font">Font</label>
+        <select id="set-font" data-setting="fontFamily">
+          <option value="publisher">Publisher default</option>
+          <option value="serif">Serif</option>
+          <option value="sans">Sans-serif</option>
+          <option value="dyslexic">Rounded (readability)</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-line">Line spacing</label>
+        <select id="set-line" data-setting="lineHeight">
+          <option value="publisher">Publisher default</option>
+          <option value="1.3">Compact</option>
+          <option value="1.55">Comfortable</option>
+          <option value="1.8">Relaxed</option>
+          <option value="2.1">Loose</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-margins">Margins</label>
+        <select id="set-margins" data-setting="margins">
+          <option value="narrow">Narrow</option>
+          <option value="normal">Normal</option>
+          <option value="wide">Wide</option>
+        </select>
+      </div>
+
+      <div class="field">
+        <span class="label">Layout</span>
+        <div class="segmented" data-setting="flow">
+          <button data-value="paginated">Pages</button>
+          <button data-value="scrolled">Scroll</button>
+        </div>
+      </div>
+
+      <div class="field">
+        <label class="label" for="set-spread">Columns</label>
+        <select id="set-spread" data-setting="spread">
+          <option value="auto">Two on wide screens</option>
+          <option value="single">Always one</option>
+        </select>
+      </div>
+
+      <label class="field check">
+        <input type="checkbox" data-setting="justify">
+        <span>Justify paragraphs</span>
+      </label>
+    </aside>
+    <div id="scrim" class="scrim" hidden></div>
+  </section>
+
+  <div id="drop-overlay" class="drop-overlay" hidden>
+    <div class="drop-box">
+      <svg class="icon"><use href="#i-plus"/></svg>
+      <p>Drop EPUB files to add them</p>
+    </div>
+  </div>
+
+  <div id="toast-region" class="toasts" role="status" aria-live="polite"></div>
+</body>
+</html>
