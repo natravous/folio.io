@@ -15,7 +15,7 @@ Folio is an EPUB reader that runs entirely in the browser. You host it as a plai
   - Progress slider for jumping anywhere in the book
   - Internal links and footnotes work; external links open in a new tab
 - **Display settings:** Grey (the default), Auto, Light, Sepia or Dark theme; Normal (book-shaped) or Wide page width; text size; font; line spacing; margins; justified text.
-- **Navigation:** arrow keys, PageUp/PageDown, Space, mouse wheel, clicking or tapping the blank margin beside the text, swiping, or `T` to open the contents.
+- **Navigation:** arrow keys, PageUp/PageDown, Space, mouse wheel, clicking the empty area to the left or right of the page, swiping, or `T` to open the contents.
 - **Safe rendering:** scripts inside books are removed, and each chapter is shown in a sandboxed iframe that cannot run scripts.
 
 ## Running locally
