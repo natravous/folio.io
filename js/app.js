@@ -326,21 +326,28 @@ function onRelocate(loc) {
     info.textContent = `Section ${loc.index + 1} of ${book.spine.length}`;
     info.title = '';
   } else if (loc.bookPages) {
-    info.textContent = `Page ${loc.bookPage} of ${loc.bookPages}`;
+    info.textContent = compactFooter() ? `${loc.bookPage} / ${loc.bookPages}` : `Page ${loc.bookPage} of ${loc.bookPages}`;
     info.title = `Page ${loc.page + 1} of ${loc.pages} in this section`;
   } else {
     // Whole-book numbers appear once every chapter has been laid out.
-    info.textContent = `Page ${loc.page + 1} of ${loc.pages} · counting…`;
+    info.textContent = compactFooter()
+      ? `p. ${loc.page + 1}/${loc.pages}…`
+      : `Page ${loc.page + 1} of ${loc.pages} · counting…`;
     info.title = 'Counting pages in the whole book';
   }
-  $('btn-prev').disabled = !!loc.atStart;
-  $('btn-next').disabled = !!loc.atEnd;
+  $('btn-prev').disabled = $('foot-prev').disabled = !!loc.atStart;
+  $('btn-next').disabled = $('foot-next').disabled = !!loc.atEnd;
 
   const { id } = current;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     db.updateBook(id, { location: { index: loc.index, fraction: loc.fraction }, progress, lastOpened: Date.now() });
   }, 400);
+}
+
+// Phones get a short "22 / 74" so the footer fits next to the page buttons.
+function compactFooter() {
+  return matchMedia('(max-width: 699px)').matches;
 }
 
 function showError(err) {
@@ -539,8 +546,9 @@ function bindDragDrop() {
 function registerServiceWorker() {
   const status = $('offline-status');
   const show = (icon, text) => {
-    status.innerHTML = `<svg class="icon"><use href="#${icon}"/></svg>`;
-    status.append(text);
+    status.innerHTML = `<svg class="icon"><use href="#${icon}"/></svg><span class="pill-text"></span>`;
+    status.querySelector('.pill-text').textContent = text;
+    status.title = text;
     status.hidden = false;
   };
   const refresh = () => {
@@ -589,6 +597,8 @@ function init() {
   for (const btn of document.querySelectorAll('[data-close]')) btn.addEventListener('click', closePanels);
   $('btn-prev').addEventListener('click', () => current && current.reader.prev());
   $('btn-next').addEventListener('click', () => current && current.reader.next());
+  $('foot-prev').addEventListener('click', () => current && current.reader.prev());
+  $('foot-next').addEventListener('click', () => current && current.reader.next());
   $('progress').addEventListener('input', (e) => {
     $('progress-text').textContent = `${Math.round(Number(e.target.value) / 10)}%`;
   });

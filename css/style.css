@@ -282,9 +282,34 @@ button { cursor: pointer; }
 }
 .foot-text { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 #page-info { min-width: 90px; cursor: default; }
+.foot-nav { display: none; width: 44px; height: 44px; margin: -6px 0; }
+.foot-nav:disabled { opacity: .35; cursor: default; }
 .foot-pct { min-width: 36px; text-align: right; }
 #progress { flex: 1; accent-color: var(--accent); min-width: 60px; }
-@media (max-width: 480px) { #page-info { display: none; } }
+/* Phones and narrow windows: there is no space beside the page and the side
+   buttons are hidden, so page-turn buttons move into the footer (alongside swipe).
+   Settings that only matter on wide screens are hidden. */
+@media (max-width: 699px) {
+  .foot-nav { display: inline-grid; }
+  .reader-foot { gap: 6px; padding-left: max(4px, env(safe-area-inset-left)); padding-right: max(4px, env(safe-area-inset-right)); }
+  #page-info { min-width: 0; }
+  .foot-pct { min-width: 0; }
+  .wide-only { display: none !important; }
+  #settings-panel.popover { left: 8px; right: 8px; width: auto; top: 56px; }
+  .field { padding: 10px 16px; }
+  .segmented button { padding: 8px 9px; }
+  .lib-header { padding-left: 12px; padding-right: 12px; }
+  .pill { padding: 4px 8px; }
+  .pill .pill-text { display: none; }
+}
+
+/* Touch devices: no drag-and-drop, no hover. */
+.touch-only { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .touch-only { display: inline; }
+  .desktop-only { display: none; }
+  .viewer { cursor: auto; }
+}
 
 .loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; }
 .spinner {

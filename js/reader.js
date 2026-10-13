@@ -45,6 +45,35 @@ function contrast(c1, c2) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// Browsers ignore max-width on tables, so a table wider than the text column
+// (common in textbooks) spills onto the neighbouring page or off a phone screen.
+// Squeeze those tables to the column width; cell text wraps to fit.
+function fitWideTables(doc) {
+  const body = doc.body;
+  if (!body) return;
+  const cs = doc.defaultView.getComputedStyle(body);
+  const columns = parseInt(cs.columnCount, 10) || 1;
+  const gap = parseFloat(cs.columnGap) || 0;
+  const inner = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const columnWidth = (inner - gap * (columns - 1)) / columns;
+  for (const table of doc.querySelectorAll('table')) {
+    if (table.dataset.folioFit) continue;
+    // offsetWidth, not getBoundingClientRect: a table split across pages reports
+    // a box spanning both columns, which would look "too wide" when it is not.
+    // Count the table's side margins too: books often indent tables, and an
+    // indented full-width table still sticks out past the page.
+    const ts = doc.defaultView.getComputedStyle(table);
+    const outer = table.offsetWidth + parseFloat(ts.marginLeft) + parseFloat(ts.marginRight);
+    if (outer > columnWidth + 1) {
+      table.dataset.folioFit = '1';
+      table.style.setProperty('width', '100%', 'important');
+      table.style.setProperty('table-layout', 'fixed', 'important');
+      table.style.setProperty('margin-left', '0', 'important');
+      table.style.setProperty('margin-right', '0', 'important');
+    }
+  }
+}
+
 export function resolveTheme(name) {
   if (name === 'auto') {
     return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -216,6 +245,14 @@ export class Reader {
       lines.push('body p { text-align: justify !important; hyphens: auto; -webkit-hyphens: auto; }');
     }
     lines.push('::selection { background: rgba(255, 196, 0, 0.45); }');
+    // Nothing may be wider than the page. Wide tables, fixed-width boxes and
+    // long words otherwise spill into the neighbouring page in paginated mode
+    // (or off-screen on phones).
+    lines.push('body { overflow-wrap: break-word; }');
+    lines.push('body * { max-width: 100% !important; box-sizing: border-box !important; }');
+    lines.push('table { table-layout: auto !important; height: auto !important; }');
+    lines.push('td, th { overflow-wrap: anywhere !important; hyphens: auto; -webkit-hyphens: auto; }');
+    lines.push('pre { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }');
 
     if (this.paginated) {
       const cols = this._cols;
@@ -265,6 +302,7 @@ export class Reader {
     if (!this.doc || !this._style) return;
     this._measure();
     this._style.textContent = this._css();
+    fitWideTables(this.doc);
     this._fixContrast();
     this._countPages();
     if (this.paginated) {
@@ -321,6 +359,7 @@ export class Reader {
         const style = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style');
         style.textContent = css;
         (doc.head || doc.documentElement).appendChild(style);
+        fitWideTables(doc);
         try { await doc.fonts.ready; } catch { /* not supported */ }
         if (token !== this._countToken) return;
         const el = doc.scrollingElement || doc.documentElement;
@@ -379,12 +418,22 @@ export class Reader {
   }
 
   _countPages() {
-    const el = this.doc.scrollingElement || this.doc.documentElement;
-    if (this.paginated) {
-      this.pages = Math.max(1, Math.ceil((el.scrollWidth - this._margin - 1) / this._width));
-    } else {
+    const doc = this.doc;
+    const el = doc.scrollingElement || doc.documentElement;
+    if (this._spacer) this._spacer.remove();
+    if (!this.paginated) {
       this.pages = 1;
+      return;
     }
+    this.pages = Math.max(1, Math.ceil((el.scrollWidth - this._margin - 1) / this._width));
+    // The content can end up to one margin short of the last page's right edge,
+    // and the browser then refuses to scroll all the way to that page, leaving
+    // it shifted sideways. A 1px marker at the far edge makes every page fully
+    // reachable.
+    this._spacer = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+    this._spacer.setAttribute('aria-hidden', 'true');
+    this._spacer.style.cssText = `position:absolute !important;top:0 !important;left:${this.pages * this._width - 1}px !important;width:1px !important;height:1px !important;margin:0 !important;padding:0 !important;border:0 !important;`;
+    doc.documentElement.appendChild(this._spacer);
   }
 
   _relayout() {

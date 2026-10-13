@@ -1,7 +1,7 @@
 // Service worker: precaches the app shell so Folio opens with no network.
 // Bump VERSION whenever any file in APP_SHELL changes.
 
-const VERSION = 'folio-v5';
+const VERSION = 'folio-v7';
 const APP_SHELL = [
   './',
   './index.html',

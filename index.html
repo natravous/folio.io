@@ -46,7 +46,7 @@
       <div id="empty-state" class="empty" hidden>
         <svg class="icon empty-icon"><use href="#i-book"/></svg>
         <h2>Your library is empty</h2>
-        <p>Drop <code>.epub</code> files anywhere on this page, or choose them from your device. Books are stored only in this browser and stay readable offline.</p>
+        <p><span class="desktop-only">Drop <code>.epub</code> files anywhere on this page, or choose them from your device.</span><span class="touch-only">Choose <code>.epub</code> files from your device.</span> Books are stored only in this browser and stay readable offline.</p>
         <label class="btn btn-primary" for="file-input"><svg class="icon"><use href="#i-plus"/></svg><span>Choose EPUB files</span></label>
       </div>
       <ul id="book-grid" class="grid" aria-label="Books"></ul>
@@ -74,9 +74,11 @@
     </div>
 
     <footer class="reader-foot">
+      <button id="foot-prev" class="icon-btn foot-nav" aria-label="Previous page"><svg class="icon"><use href="#i-back"/></svg></button>
       <span id="page-info" class="foot-text"></span>
       <input id="progress" type="range" min="0" max="1000" value="0" aria-label="Book progress">
       <span id="progress-text" class="foot-text foot-pct">0%</span>
+      <button id="foot-next" class="icon-btn foot-nav" aria-label="Next page"><svg class="icon"><use href="#i-next"/></svg></button>
     </footer>
 
     <aside id="toc-panel" class="drawer" aria-label="Table of contents" hidden>
@@ -151,7 +153,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field wide-only">
         <span class="label">Page width</span>
         <div class="segmented" data-setting="pageWidth">
           <button data-value="normal" title="Book-shaped pages, centred">Normal</button>
@@ -159,7 +161,7 @@
         </div>
       </div>
 
-      <div class="field">
+      <div class="field wide-only">
         <label class="label" for="set-spread">Columns</label>
         <select id="set-spread" data-setting="spread">
           <option value="auto">Two on wide screens</option>
