@@ -292,9 +292,34 @@ button { cursor: pointer; }
 }
 .foot-text { font-size: 12px; color: var(--muted); white-space: nowrap; font-variant-numeric: tabular-nums; }
 #page-info { min-width: 90px; cursor: default; }
+.foot-nav { display: none; width: 44px; height: 44px; margin: -6px 0; }
+.foot-nav:disabled { opacity: .35; cursor: default; }
 .foot-pct { min-width: 36px; text-align: right; }
 #progress { flex: 1; accent-color: var(--accent); min-width: 60px; }
-@media (max-width: 480px) { #page-info { display: none; } }
+/* Phones and narrow windows: there is no space beside the page and the side
+   buttons are hidden, so page-turn buttons move into the footer (alongside swipe).
+   Settings that only matter on wide screens are hidden. */
+@media (max-width: 699px) {
+  .foot-nav { display: inline-grid; }
+  .reader-foot { gap: 6px; padding-left: max(4px, env(safe-area-inset-left)); padding-right: max(4px, env(safe-area-inset-right)); }
+  #page-info { min-width: 0; }
+  .foot-pct { min-width: 0; }
+  .wide-only { display: none !important; }
+  #settings-panel.popover { left: 8px; right: 8px; width: auto; top: 56px; }
+  .field { padding: 10px 16px; }
+  .segmented button { padding: 8px 9px; }
+  .lib-header { padding-left: 12px; padding-right: 12px; }
+  .pill { padding: 4px 8px; }
+  .pill .pill-text { display: none; }
+}
+
+/* Touch devices: no drag-and-drop, no hover. */
+.touch-only { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .touch-only { display: inline; }
+  .desktop-only { display: none; }
+  .viewer { cursor: auto; }
+}
 
 .loading { position: absolute; inset: 0; display: grid; place-items: center; z-index: 1; }
 .spinner {
@@ -469,7 +494,7 @@ button { cursor: pointer; }
       <div id="empty-state" class="empty" hidden>
         <svg class="icon empty-icon"><use href="#i-book"/></svg>
         <h2>Your library is empty</h2>
-        <p>Drop <code>.epub</code> files anywhere on this page, or choose them from your device. Books are stored only in this browser and stay readable offline.</p>
+        <p><span class="desktop-only">Drop <code>.epub</code> files anywhere on this page, or choose them from your device.</span><span class="touch-only">Choose <code>.epub</code> files from your device.</span> Books are stored only in this browser and stay readable offline.</p>
         <label class="btn btn-primary" for="file-input"><svg class="icon"><use href="#i-plus"/></svg><span>Choose EPUB files</span></label>
       </div>
       <ul id="book-grid" class="grid" aria-label="Books"></ul>
@@ -497,9 +522,11 @@ button { cursor: pointer; }
     </div>
 
     <footer class="reader-foot">
+      <button id="foot-prev" class="icon-btn foot-nav" aria-label="Previous page"><svg class="icon"><use href="#i-back"/></svg></button>
       <span id="page-info" class="foot-text"></span>
       <input id="progress" type="range" min="0" max="1000" value="0" aria-label="Book progress">
       <span id="progress-text" class="foot-text foot-pct">0%</span>
+      <button id="foot-next" class="icon-btn foot-nav" aria-label="Next page"><svg class="icon"><use href="#i-next"/></svg></button>
     </footer>
 
     <aside id="toc-panel" class="drawer" aria-label="Table of contents" hidden>
@@ -574,7 +601,7 @@ button { cursor: pointer; }
         </div>
       </div>
 
-      <div class="field">
+      <div class="field wide-only">
         <span class="label">Page width</span>
         <div class="segmented" data-setting="pageWidth">
           <button data-value="normal" title="Book-shaped pages, centred">Normal</button>
@@ -582,7 +609,7 @@ button { cursor: pointer; }
         </div>
       </div>
 
-      <div class="field">
+      <div class="field wide-only">
         <label class="label" for="set-spread">Columns</label>
         <select id="set-spread" data-setting="spread">
           <option value="auto">Two on wide screens</option>
@@ -1272,6 +1299,35 @@ function contrast(c1, c2) {
   return (hi + 0.05) / (lo + 0.05);
 }
 
+// Browsers ignore max-width on tables, so a table wider than the text column
+// (common in textbooks) spills onto the neighbouring page or off a phone screen.
+// Squeeze those tables to the column width; cell text wraps to fit.
+function fitWideTables(doc) {
+  const body = doc.body;
+  if (!body) return;
+  const cs = doc.defaultView.getComputedStyle(body);
+  const columns = parseInt(cs.columnCount, 10) || 1;
+  const gap = parseFloat(cs.columnGap) || 0;
+  const inner = body.clientWidth - parseFloat(cs.paddingLeft) - parseFloat(cs.paddingRight);
+  const columnWidth = (inner - gap * (columns - 1)) / columns;
+  for (const table of doc.querySelectorAll('table')) {
+    if (table.dataset.folioFit) continue;
+    // offsetWidth, not getBoundingClientRect: a table split across pages reports
+    // a box spanning both columns, which would look "too wide" when it is not.
+    // Count the table's side margins too: books often indent tables, and an
+    // indented full-width table still sticks out past the page.
+    const ts = doc.defaultView.getComputedStyle(table);
+    const outer = table.offsetWidth + parseFloat(ts.marginLeft) + parseFloat(ts.marginRight);
+    if (outer > columnWidth + 1) {
+      table.dataset.folioFit = '1';
+      table.style.setProperty('width', '100%', 'important');
+      table.style.setProperty('table-layout', 'fixed', 'important');
+      table.style.setProperty('margin-left', '0', 'important');
+      table.style.setProperty('margin-right', '0', 'important');
+    }
+  }
+}
+
 function resolveTheme(name) {
   if (name === 'auto') {
     return matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
@@ -1443,6 +1499,14 @@ class Reader {
       lines.push('body p { text-align: justify !important; hyphens: auto; -webkit-hyphens: auto; }');
     }
     lines.push('::selection { background: rgba(255, 196, 0, 0.45); }');
+    // Nothing may be wider than the page. Wide tables, fixed-width boxes and
+    // long words otherwise spill into the neighbouring page in paginated mode
+    // (or off-screen on phones).
+    lines.push('body { overflow-wrap: break-word; }');
+    lines.push('body * { max-width: 100% !important; box-sizing: border-box !important; }');
+    lines.push('table { table-layout: auto !important; height: auto !important; }');
+    lines.push('td, th { overflow-wrap: anywhere !important; hyphens: auto; -webkit-hyphens: auto; }');
+    lines.push('pre { white-space: pre-wrap !important; overflow-wrap: anywhere !important; }');
 
     if (this.paginated) {
       const cols = this._cols;
@@ -1492,6 +1556,7 @@ class Reader {
     if (!this.doc || !this._style) return;
     this._measure();
     this._style.textContent = this._css();
+    fitWideTables(this.doc);
     this._fixContrast();
     this._countPages();
     if (this.paginated) {
@@ -1548,6 +1613,7 @@ class Reader {
         const style = doc.createElementNS('http://www.w3.org/1999/xhtml', 'style');
         style.textContent = css;
         (doc.head || doc.documentElement).appendChild(style);
+        fitWideTables(doc);
         try { await doc.fonts.ready; } catch { /* not supported */ }
         if (token !== this._countToken) return;
         const el = doc.scrollingElement || doc.documentElement;
@@ -1606,12 +1672,22 @@ class Reader {
   }
 
   _countPages() {
-    const el = this.doc.scrollingElement || this.doc.documentElement;
-    if (this.paginated) {
-      this.pages = Math.max(1, Math.ceil((el.scrollWidth - this._margin - 1) / this._width));
-    } else {
+    const doc = this.doc;
+    const el = doc.scrollingElement || doc.documentElement;
+    if (this._spacer) this._spacer.remove();
+    if (!this.paginated) {
       this.pages = 1;
+      return;
     }
+    this.pages = Math.max(1, Math.ceil((el.scrollWidth - this._margin - 1) / this._width));
+    // The content can end up to one margin short of the last page's right edge,
+    // and the browser then refuses to scroll all the way to that page, leaving
+    // it shifted sideways. A 1px marker at the far edge makes every page fully
+    // reachable.
+    this._spacer = doc.createElementNS('http://www.w3.org/1999/xhtml', 'div');
+    this._spacer.setAttribute('aria-hidden', 'true');
+    this._spacer.style.cssText = `position:absolute !important;top:0 !important;left:${this.pages * this._width - 1}px !important;width:1px !important;height:1px !important;margin:0 !important;padding:0 !important;border:0 !important;`;
+    doc.documentElement.appendChild(this._spacer);
   }
 
   _relayout() {
@@ -2132,21 +2208,28 @@ function onRelocate(loc) {
     info.textContent = `Section ${loc.index + 1} of ${book.spine.length}`;
     info.title = '';
   } else if (loc.bookPages) {
-    info.textContent = `Page ${loc.bookPage} of ${loc.bookPages}`;
+    info.textContent = compactFooter() ? `${loc.bookPage} / ${loc.bookPages}` : `Page ${loc.bookPage} of ${loc.bookPages}`;
     info.title = `Page ${loc.page + 1} of ${loc.pages} in this section`;
   } else {
     // Whole-book numbers appear once every chapter has been laid out.
-    info.textContent = `Page ${loc.page + 1} of ${loc.pages} · counting…`;
+    info.textContent = compactFooter()
+      ? `p. ${loc.page + 1}/${loc.pages}…`
+      : `Page ${loc.page + 1} of ${loc.pages} · counting…`;
     info.title = 'Counting pages in the whole book';
   }
-  $('btn-prev').disabled = !!loc.atStart;
-  $('btn-next').disabled = !!loc.atEnd;
+  $('btn-prev').disabled = $('foot-prev').disabled = !!loc.atStart;
+  $('btn-next').disabled = $('foot-next').disabled = !!loc.atEnd;
 
   const { id } = current;
   clearTimeout(saveTimer);
   saveTimer = setTimeout(() => {
     db.updateBook(id, { location: { index: loc.index, fraction: loc.fraction }, progress, lastOpened: Date.now() });
   }, 400);
+}
+
+// Phones get a short "22 / 74" so the footer fits next to the page buttons.
+function compactFooter() {
+  return matchMedia('(max-width: 699px)').matches;
 }
 
 function showError(err) {
@@ -2345,8 +2428,9 @@ function bindDragDrop() {
 function registerServiceWorker() {
   const status = $('offline-status');
   const show = (icon, text) => {
-    status.innerHTML = `<svg class="icon"><use href="#${icon}"/></svg>`;
-    status.append(text);
+    status.innerHTML = `<svg class="icon"><use href="#${icon}"/></svg><span class="pill-text"></span>`;
+    status.querySelector('.pill-text').textContent = text;
+    status.title = text;
     status.hidden = false;
   };
   const refresh = () => {
@@ -2395,6 +2479,8 @@ function init() {
   for (const btn of document.querySelectorAll('[data-close]')) btn.addEventListener('click', closePanels);
   $('btn-prev').addEventListener('click', () => current && current.reader.prev());
   $('btn-next').addEventListener('click', () => current && current.reader.next());
+  $('foot-prev').addEventListener('click', () => current && current.reader.prev());
+  $('foot-next').addEventListener('click', () => current && current.reader.next());
   $('progress').addEventListener('input', (e) => {
     $('progress-text').textContent = `${Math.round(Number(e.target.value) / 10)}%`;
   });
