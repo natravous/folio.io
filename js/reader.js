@@ -532,9 +532,10 @@ export class Reader {
     if (!this.paginated) return;
     const selection = this.win.getSelection();
     if (selection && !selection.isCollapsed) return;
-    const ratio = e.clientX / this._width;
-    if (ratio < 0.25) this.prev();
-    else if (ratio > 0.75) this.next();
+    // Only the blank side margins turn pages, so clicking or selecting text never
+    // does. The zones track the margin setting (clientX is relative to the frame).
+    if (e.clientX < this._margin) this.prev();
+    else if (e.clientX > this._width - this._margin) this.next();
   }
 
   _onWheel(e) {
